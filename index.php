@@ -1,0 +1,720 @@
+<?php
+/**
+ * Front Controller / Enrutador
+ * -----------------------------------------------------
+ * Único punto de entrada de la aplicación.
+ * Todas las peticiones HTTP pasan por aquí (vía .htaccess
+ * o el servidor embebido de PHP) y este archivo decide
+ * qué método del Controller ejecutar y qué vista mostrar.
+ *
+ * Este archivo NO contiene lógica de negocio ni SQL.
+ * Solo enruta.
+ * -----------------------------------------------------
+ */
+require_once __DIR__ . '/app/Controllers/TrabajoController.php';
+require_once __DIR__ . '/app/Controllers/ClienteController.php';
+require_once __DIR__ . '/app/Controllers/EquipoController.php';
+require_once __DIR__ . '/app/Controllers/PersonalController.php';
+require_once __DIR__ . '/app/Controllers/TareoController.php';
+require_once __DIR__ . '/app/Controllers/ViaticoController.php';
+require_once __DIR__ . '/app/Models/Usuario.php';
+
+// Quitamos query string y la barra final para comparar rutas limpias.
+$rutaSolicitada = strtok($_SERVER['REQUEST_URI'], '?');
+$rutaSolicitada = rtrim($rutaSolicitada, '/');
+$metodoHttp = $_SERVER['REQUEST_METHOD'];
+
+$trabajoController = new TrabajoController();
+$clienteController = new ClienteController();
+$equipoController = new EquipoController();
+$personalController = new PersonalController();
+$tareoController = new TareoController();
+$viaticoController = new ViaticoController();
+$usuarioModel = new Usuario();
+
+/**
+ * Helper para incluir una vista con variables ya resueltas,
+ * sin exponer $this ni contaminar el scope global.
+ */
+function renderizarVista(string $rutaVista, array $datos = []): void
+{
+    extract($datos);
+    require $rutaVista;
+}
+
+// -----------------------------------------------------
+// GET /trabajos  (listado con filtros)
+// -----------------------------------------------------
+if ($metodoHttp === 'GET' && $rutaSolicitada === '/trabajos') {
+    $estadoActual        = $_GET['estado'] ?? 'Todos';
+    $idResponsableActual = !empty($_GET['responsable']) ? (int) $_GET['responsable'] : null;
+    $busquedaActual      = $_GET['buscar'] ?? '';
+
+    $trabajos = $trabajoController->listar($estadoActual, $idResponsableActual, $busquedaActual);
+
+    // TODO: reemplazar por el listado real de responsables
+    // (probablemente vendrá de un Modelo Usuario que aún no existe).
+    $responsables = $usuarioModel->listar();
+
+    renderizarVista(__DIR__ . '/app/Views/trabajos/listado.php', [
+        'trabajos'            => $trabajos,
+        'responsables'        => $responsables,
+        'estadoActual'        => $estadoActual,
+        'idResponsableActual' => $idResponsableActual,
+        'busquedaActual'      => $busquedaActual,
+    ]);
+    exit;
+}
+
+// -----------------------------------------------------
+// GET /modulos  (pantalla independiente de módulos del sistema)
+// -----------------------------------------------------
+if ($metodoHttp === 'GET' && $rutaSolicitada === '/modulos') {
+    // Cada módulo: 'ruta' => null mientras no exista su propia vista/controlador.
+    // Cuando se desarrolle un módulo en fases futuras, solo hay que
+    // agregarle su 'ruta' real aquí (ej: '/modulos/personal').
+    $modulos = [
+        ['nombre' => 'Personal',          'icono' => '👷', 'ruta' => '/personal'],
+        ['nombre' => 'Equipos',           'icono' => '🚜', 'ruta' => '/equipos'],
+        ['nombre' => 'Tareo',             'icono' => '🕒', 'ruta' => '/tareo'],
+        ['nombre' => 'Viáticos',          'icono' => '🧳', 'ruta' => '/viaticos'],
+        ['nombre' => 'Materiales',        'icono' => '📦', 'ruta' => null],
+        ['nombre' => 'Gastos Generales',  'icono' => '🧾', 'ruta' => null],
+        ['nombre' => 'Costo Financiero',  'icono' => '💰', 'ruta' => null],
+        ['nombre' => 'Reportes',          'icono' => '📊', 'ruta' => null],
+    ];
+
+    renderizarVista(__DIR__ . '/app/Views/modulos/listado.php', [
+        'modulos' => $modulos,
+    ]);
+    exit;
+}
+
+// -----------------------------------------------------
+// GET /trabajos/nuevo  (mostrar formulario vacío)
+// -----------------------------------------------------
+if ($metodoHttp === 'GET' && $rutaSolicitada === '/trabajos/nuevo') {
+    // TODO: reemplazar por el listado real de responsables (usuarios)
+    $responsables = $usuarioModel->listar();
+    $clientes     = $clienteController->listar();
+
+    renderizarVista(__DIR__ . '/app/Views/trabajos/formulario.php', [
+        'responsables' => $responsables,
+        'clientes'     => $clientes,
+        'trabajo'      => null,
+        'errores'      => [],
+    ]);
+    exit;
+}
+
+// -----------------------------------------------------
+// POST /trabajos/guardar  (registrar nuevo trabajo)
+// -----------------------------------------------------
+if ($metodoHttp === 'POST' && $rutaSolicitada === '/trabajos/guardar') {
+    $resultado = $trabajoController->registrar($_POST);
+
+    if (!$resultado['exito']) {
+        // TODO: reemplazar por el listado real de responsables (usuarios)
+        $responsables = $usuarioModel->listar();
+        $clientes     = $clienteController->listar();
+
+        renderizarVista(__DIR__ . '/app/Views/trabajos/formulario.php', [
+            'responsables' => $responsables,
+            'clientes'     => $clientes,
+            'trabajo'      => $_POST, // para no perder lo que el usuario ya escribió
+            'errores'      => [$resultado['mensaje']],
+        ]);
+        exit;
+    }
+
+    header('Location: /trabajos');
+    exit;
+}
+
+// -----------------------------------------------------
+// GET /trabajos/editar/{id}  (mostrar formulario con datos)
+// -----------------------------------------------------
+if ($metodoHttp === 'GET' && preg_match('#^/trabajos/editar/(\d+)$#', $rutaSolicitada, $coincidencias)) {
+    $idTrabajo = (int) $coincidencias[1];
+    $trabajo   = $trabajoController->verDetalle($idTrabajo);
+
+    if ($trabajo === null) {
+        http_response_code(404);
+        echo 'Trabajo no encontrado.';
+        exit;
+    }
+
+    // TODO: reemplazar por el listado real de responsables (usuarios)
+    $responsables = $usuarioModel->listar();
+    $clientes     = $clienteController->listar();
+
+    renderizarVista(__DIR__ . '/app/Views/trabajos/formulario.php', [
+        'responsables' => $responsables,
+        'clientes'     => $clientes,
+        'trabajo'      => $trabajo,
+        'errores'      => [],
+    ]);
+    exit;
+}
+
+// -----------------------------------------------------
+// POST /trabajos/actualizar/{id}  (guardar cambios de edición)
+// -----------------------------------------------------
+if ($metodoHttp === 'POST' && preg_match('#^/trabajos/actualizar/(\d+)$#', $rutaSolicitada, $coincidencias)) {
+    $idTrabajo = (int) $coincidencias[1];
+    $resultado = $trabajoController->actualizar($idTrabajo, $_POST);
+
+    if (!$resultado['exito']) {
+        $trabajo = $trabajoController->verDetalle($idTrabajo);
+
+        // TODO: reemplazar por el listado real de responsables (usuarios)
+        $responsables = $usuarioModel->listar();
+        $clientes     = $clienteController->listar();
+
+        renderizarVista(__DIR__ . '/app/Views/trabajos/formulario.php', [
+            'responsables' => $responsables,
+            'clientes'     => $clientes,
+            'trabajo'      => $trabajo,
+            'errores'      => [$resultado['mensaje']],
+        ]);
+        exit;
+    }
+
+    header('Location: /trabajos/expediente/' . $idTrabajo);
+    exit;
+}
+
+// -----------------------------------------------------
+// POST /trabajos/cambiar-estado/{id}  (cambio rápido de estado)
+// -----------------------------------------------------
+if ($metodoHttp === 'POST' && preg_match('#^/trabajos/cambiar-estado/(\d+)$#', $rutaSolicitada, $coincidencias)) {
+    $idTrabajo = (int) $coincidencias[1];
+    $trabajoController->cambiarEstado($idTrabajo, $_POST['estado'] ?? '');
+
+    header('Location: /trabajos/editar/' . $idTrabajo);
+    exit;
+}
+
+// -----------------------------------------------------
+// POST /trabajos/eliminar/{id}
+// -----------------------------------------------------
+if (
+    $metodoHttp === 'POST'
+    && preg_match('#^/trabajos/eliminar/(\d+)$#', $rutaSolicitada, $coincidencias)
+) {
+
+    $idTrabajo = (int) $coincidencias[1];
+
+    $resultado = $trabajoController->eliminar($idTrabajo);
+
+    header(
+        'Location: /trabajos?mensaje=' .
+        urlencode($resultado['mensaje']) .
+        '&tipo=' .
+        ($resultado['exito'] ? 'success' : 'error')
+    );
+
+    exit;
+}
+
+// -----------------------------------------------------
+// GET /trabajos/expediente/{id}  (ver ficha completa)
+// -----------------------------------------------------
+if ($metodoHttp === 'GET' && preg_match('#^/trabajos/expediente/(\d+)$#', $rutaSolicitada, $coincidencias)) {
+    $idTrabajo = (int) $coincidencias[1];
+    $trabajo   = $trabajoController->verDetalle($idTrabajo);
+
+    if ($trabajo === null) {
+        http_response_code(404);
+        echo 'Trabajo no encontrado.';
+        exit;
+    }
+
+    renderizarVista(__DIR__ . '/app/Views/trabajos/expediente.php', [
+        'trabajo' => $trabajo,
+    ]);
+    exit;
+}
+
+// -----------------------------------------------------
+// POST /clientes/guardar  (registrar cliente vía AJAX desde el modal
+// "+ Nuevo Cliente". No es un módulo aparte: solo alimenta el
+// catálogo simple de clientes usado en el formulario de Trabajos)
+// -----------------------------------------------------
+if ($metodoHttp === 'POST' && $rutaSolicitada === '/clientes/guardar') {
+    $resultado = $clienteController->registrar($_POST);
+
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode([
+        'success'        => $resultado['exito'],
+        'message'        => $resultado['mensaje'],
+        'id'             => $resultado['id_cliente'] ?? null,
+        'nombre_cliente' => $resultado['nombre_cliente'] ?? null,
+    ]);
+    exit;
+}
+
+// -----------------------------------------------------
+// GET /equipos  (listado general de registros de equipos)
+// -----------------------------------------------------
+if ($metodoHttp === 'GET' && $rutaSolicitada === '/equipos') {
+    $estadoActual = $_GET['estado'] ?? 'Todos';
+    $equipos      = $equipoController->listar($estadoActual);
+
+    renderizarVista(__DIR__ . '/app/Views/equipos/listado.php', [
+        'equipos'     => $equipos,
+        'estadoActual'=> $estadoActual,
+    ]);
+    exit;
+}
+
+// -----------------------------------------------------
+// GET /equipos/nuevo  (mostrar formulario vacío)
+// -----------------------------------------------------
+if ($metodoHttp === 'GET' && $rutaSolicitada === '/equipos/nuevo') {
+    $trabajos = $trabajoController->listar();
+
+    renderizarVista(__DIR__ . '/app/Views/equipos/formulario.php', [
+        'trabajos' => $trabajos,
+        'equipo'   => null,
+        'errores'  => [],
+    ]);
+    exit;
+}
+
+// -----------------------------------------------------
+// POST /equipos/guardar  (registrar nuevo registro de equipos)
+// -----------------------------------------------------
+if ($metodoHttp === 'POST' && $rutaSolicitada === '/equipos/guardar') {
+    $resultado = $equipoController->registrar($_POST);
+
+    if (!$resultado['exito']) {
+        $trabajos = $trabajoController->listar();
+
+        renderizarVista(__DIR__ . '/app/Views/equipos/formulario.php', [
+            'trabajos' => $trabajos,
+            'equipo'   => $_POST,
+            'errores'  => [$resultado['mensaje']],
+        ]);
+        exit;
+    }
+
+    header('Location: /equipos');
+    exit;
+}
+
+// -----------------------------------------------------
+// GET /equipos/editar/{id}  (mostrar formulario con datos)
+// -----------------------------------------------------
+if ($metodoHttp === 'GET' && preg_match('#^/equipos/editar/(\d+)$#', $rutaSolicitada, $coincidencias)) {
+    $idEquipo = (int) $coincidencias[1];
+    $equipo   = $equipoController->verDetalle($idEquipo);
+
+    if ($equipo === null) {
+        http_response_code(404);
+        echo 'Registro de equipos no encontrado.';
+        exit;
+    }
+
+    $trabajos = $trabajoController->listar();
+
+    renderizarVista(__DIR__ . '/app/Views/equipos/formulario.php', [
+        'trabajos' => $trabajos,
+        'equipo'   => $equipo,
+        'errores'  => [],
+    ]);
+    exit;
+}
+
+// -----------------------------------------------------
+// POST /equipos/actualizar/{id}  (guardar cambios de edición)
+// -----------------------------------------------------
+if ($metodoHttp === 'POST' && preg_match('#^/equipos/actualizar/(\d+)$#', $rutaSolicitada, $coincidencias)) {
+    $idEquipo  = (int) $coincidencias[1];
+    $resultado = $equipoController->actualizar($idEquipo, $_POST);
+
+    if (!$resultado['exito']) {
+        $equipo   = $equipoController->verDetalle($idEquipo);
+        $trabajos = $trabajoController->listar();
+
+        renderizarVista(__DIR__ . '/app/Views/equipos/formulario.php', [
+            'trabajos' => $trabajos,
+            'equipo'   => $equipo,
+            'errores'  => [$resultado['mensaje']],
+        ]);
+        exit;
+    }
+
+    header('Location: /equipos');
+    exit;
+}
+
+// -----------------------------------------------------
+// GET /equipos/ver/{id}  (detalle de un registro, botón 👁️)
+// -----------------------------------------------------
+if ($metodoHttp === 'GET' && preg_match('#^/equipos/ver/(\d+)$#', $rutaSolicitada, $coincidencias)) {
+    $idEquipo = (int) $coincidencias[1];
+    $equipo   = $equipoController->verDetalle($idEquipo);
+
+    if ($equipo === null) {
+        http_response_code(404);
+        echo 'Registro de equipos no encontrado.';
+        exit;
+    }
+
+    renderizarVista(__DIR__ . '/app/Views/equipos/detalle.php', [
+        'equipo' => $equipo,
+    ]);
+    exit;
+}
+
+// -----------------------------------------------------
+// POST /equipos/eliminar/{id}  (eliminar registro, botón 🗑️)
+// -----------------------------------------------------
+if ($metodoHttp === 'POST' && preg_match('#^/equipos/eliminar/(\d+)$#', $rutaSolicitada, $coincidencias)) {
+    $idEquipo = (int) $coincidencias[1];
+    $equipoController->eliminar($idEquipo);
+
+    header('Location: /equipos');
+    exit;
+}
+
+// -----------------------------------------------------
+// GET /personal
+// -----------------------------------------------------
+
+if ($metodoHttp === 'GET' && $rutaSolicitada === '/personal') {
+    $estadoActual = $_GET['estado'] ?? 'Todos';
+    $personal     = $personalController->listar($estadoActual);
+
+    renderizarVista(__DIR__ . '/app/Views/personal/listado.php', [
+        'personal'    => $personal,
+        'estadoActual'=> $estadoActual,
+    ]);
+    exit;
+}
+
+// -----------------------------------------------------
+// GET /personal/nuevo
+// -----------------------------------------------------
+
+if ($metodoHttp === 'GET' && $rutaSolicitada === '/personal/nuevo') {
+    $responsables = $usuarioModel->listar();
+
+    renderizarVista(__DIR__ . '/app/Views/personal/formulario.php', [
+        'responsables' => $responsables,
+        'trabajador'   => null,
+        'errores'      => [],
+    ]);
+    exit;
+}
+
+// -----------------------------------------------------
+// POST /personal/guardar
+// -----------------------------------------------------
+
+if ($metodoHttp === 'POST' && $rutaSolicitada === '/personal/guardar') {
+    $resultado = $personalController->registrar($_POST);
+
+    if (!$resultado['exito']) {
+        $responsables = $usuarioModel->listar();
+
+        renderizarVista(__DIR__ . '/app/Views/personal/formulario.php', [
+            'responsables' => $responsables,
+            'trabajador'   => $_POST,
+            'errores'      => [$resultado['mensaje']],
+        ]);
+        exit;
+    }
+
+    header('Location: /personal');
+    exit;
+}
+
+// -----------------------------------------------------
+// GET /personal/editar/{id}
+// -----------------------------------------------------
+
+if ($metodoHttp === 'GET' && preg_match('#^/personal/editar/(\d+)$#', $rutaSolicitada, $coincidencias)) {
+    $idPersonal = (int) $coincidencias[1];
+    $trabajador = $personalController->verDetalle($idPersonal);
+
+    if ($trabajador === null) {
+        http_response_code(404);
+        echo 'Registro de personal no encontrado.';
+        exit;
+    }
+
+    $responsables = $usuarioModel->listar();
+
+    renderizarVista(__DIR__ . '/app/Views/personal/formulario.php', [
+        'responsables' => $responsables,
+        'trabajador'   => $trabajador,
+        'errores'      => [],
+    ]);
+    exit;
+}
+
+// -----------------------------------------------------
+// POST /personal/actualizar/{id}
+// -----------------------------------------------------
+
+if ($metodoHttp === 'POST' && preg_match('#^/personal/actualizar/(\d+)$#', $rutaSolicitada, $coincidencias)) {
+    $idPersonal = (int) $coincidencias[1];
+    $resultado  = $personalController->actualizar($idPersonal, $_POST);
+
+    if (!$resultado['exito']) {
+        $trabajador   = $personalController->verDetalle($idPersonal);
+        $responsables = $usuarioModel->listar();
+
+        renderizarVista(__DIR__ . '/app/Views/personal/formulario.php', [
+            'responsables' => $responsables,
+            'trabajador'   => $trabajador,
+            'errores'      => [$resultado['mensaje']],
+        ]);
+        exit;
+    }
+
+    header('Location: /personal');
+    exit;
+}
+
+// -----------------------------------------------------
+// POST /personal/eliminar/{id}
+// -----------------------------------------------------
+
+if ($metodoHttp === 'POST' && preg_match('#^/personal/eliminar/(\d+)$#', $rutaSolicitada, $coincidencias)) {
+    $idPersonal = (int) $coincidencias[1];
+    $personalController->eliminar($idPersonal);
+
+    header('Location: /personal');
+    exit;
+}
+
+// -----------------------------------------------------
+// GET /tareo  (listado)
+// -----------------------------------------------------
+if ($metodoHttp === 'GET' && $rutaSolicitada === '/tareo') {
+    $registros = $tareoController->listar();
+
+    renderizarVista(__DIR__ . '/app/Views/tareo/listado.php', [
+        'registros' => $registros,
+    ]);
+    exit;
+}
+
+// -----------------------------------------------------
+// GET /tareo/nuevo  (mostrar formulario vacío)
+// -----------------------------------------------------
+if ($metodoHttp === 'GET' && $rutaSolicitada === '/tareo/nuevo') {
+    $trabajos = $trabajoController->listar();
+    // Solo personal Activo puede tarearse; ajusta este filtro si
+    // más adelante quieres permitir también personal en otro estado.
+    $personal = $personalController->listar('Activo');
+
+    renderizarVista(__DIR__ . '/app/Views/tareo/formulario.php', [
+        'trabajos' => $trabajos,
+        'personal' => $personal,
+        'tareo'    => null,
+        'errores'  => [],
+    ]);
+    exit;
+}
+
+// -----------------------------------------------------
+// POST /tareo/guardar  (registrar nuevo tareo)
+// -----------------------------------------------------
+if ($metodoHttp === 'POST' && $rutaSolicitada === '/tareo/guardar') {
+    $resultado = $tareoController->registrar($_POST);
+
+    if (!$resultado['exito']) {
+        $trabajos = $trabajoController->listar();
+        $personal = $personalController->listar('Activo');
+
+        renderizarVista(__DIR__ . '/app/Views/tareo/formulario.php', [
+            'trabajos' => $trabajos,
+            'personal' => $personal,
+            'tareo'    => $_POST,
+            'errores'  => [$resultado['mensaje']],
+        ]);
+        exit;
+    }
+
+    header('Location: /tareo');
+    exit;
+}
+
+// -----------------------------------------------------
+// GET /tareo/editar/{id}  (mostrar formulario con datos)
+// -----------------------------------------------------
+if ($metodoHttp === 'GET' && preg_match('#^/tareo/editar/(\d+)$#', $rutaSolicitada, $coincidencias)) {
+    $idTareo = (int) $coincidencias[1];
+    $tareo   = $tareoController->verDetalle($idTareo);
+
+    if ($tareo === null) {
+        http_response_code(404);
+        echo 'Registro de tareo no encontrado.';
+        exit;
+    }
+
+    $trabajos = $trabajoController->listar();
+    $personal = $personalController->listar('Activo');
+
+    renderizarVista(__DIR__ . '/app/Views/tareo/formulario.php', [
+        'trabajos' => $trabajos,
+        'personal' => $personal,
+        'tareo'    => $tareo,
+        'errores'  => [],
+    ]);
+    exit;
+}
+
+// -----------------------------------------------------
+// POST /tareo/actualizar/{id}  (guardar cambios de edición)
+// -----------------------------------------------------
+if ($metodoHttp === 'POST' && preg_match('#^/tareo/actualizar/(\d+)$#', $rutaSolicitada, $coincidencias)) {
+    $idTareo   = (int) $coincidencias[1];
+    $resultado = $tareoController->actualizar($idTareo, $_POST);
+
+    if (!$resultado['exito']) {
+        $tareo    = $tareoController->verDetalle($idTareo);
+        $trabajos = $trabajoController->listar();
+        $personal = $personalController->listar('Activo');
+
+        renderizarVista(__DIR__ . '/app/Views/tareo/formulario.php', [
+            'trabajos' => $trabajos,
+            'personal' => $personal,
+            'tareo'    => $tareo,
+            'errores'  => [$resultado['mensaje']],
+        ]);
+        exit;
+    }
+
+    header('Location: /tareo');
+    exit;
+}
+
+// -----------------------------------------------------
+// POST /tareo/eliminar/{id}
+// -----------------------------------------------------
+if ($metodoHttp === 'POST' && preg_match('#^/tareo/eliminar/(\d+)$#', $rutaSolicitada, $coincidencias)) {
+    $idTareo = (int) $coincidencias[1];
+    $tareoController->eliminar($idTareo);
+
+    header('Location: /tareo');
+    exit;
+}
+
+// -----------------------------------------------------
+// GET /viaticos  (listado general de gastos de viáticos)
+// -----------------------------------------------------
+if ($metodoHttp === 'GET' && $rutaSolicitada === '/viaticos') {
+    $viaticos = $viaticoController->listar();
+
+    renderizarVista(__DIR__ . '/app/Views/viaticos/listado.php', [
+        'viaticos' => $viaticos,
+    ]);
+    exit;
+}
+
+// -----------------------------------------------------
+// GET /viaticos/nuevo  (mostrar formulario vacío)
+// -----------------------------------------------------
+if ($metodoHttp === 'GET' && $rutaSolicitada === '/viaticos/nuevo') {
+    renderizarVista(__DIR__ . '/app/Views/viaticos/formulario.php', [
+        'viatico' => null,
+        'errores' => [],
+    ]);
+    exit;
+}
+
+// -----------------------------------------------------
+// POST /viaticos/guardar  (registrar nuevo gasto de viático)
+// -----------------------------------------------------
+if ($metodoHttp === 'POST' && $rutaSolicitada === '/viaticos/guardar') {
+    $resultado = $viaticoController->registrar($_POST);
+
+    if (!$resultado['exito']) {
+        renderizarVista(__DIR__ . '/app/Views/viaticos/formulario.php', [
+            'viatico' => $_POST, // para no perder lo que el usuario ya escribió
+            'errores' => [$resultado['mensaje']],
+        ]);
+        exit;
+    }
+
+    header('Location: /viaticos');
+    exit;
+}
+
+// -----------------------------------------------------
+// GET /viaticos/editar/{id}  (mostrar formulario con datos)
+// -----------------------------------------------------
+if ($metodoHttp === 'GET' && preg_match('#^/viaticos/editar/(\d+)$#', $rutaSolicitada, $coincidencias)) {
+    $idViatico = (int) $coincidencias[1];
+    $viatico   = $viaticoController->verDetalleConTrabajo($idViatico);
+
+    if ($viatico === null) {
+        http_response_code(404);
+        echo 'Registro de viático no encontrado.';
+        exit;
+    }
+
+    renderizarVista(__DIR__ . '/app/Views/viaticos/formulario.php', [
+        'viatico' => $viatico,
+        'errores' => [],
+    ]);
+    exit;
+}
+
+// -----------------------------------------------------
+// POST /viaticos/actualizar/{id}  (guardar cambios de edición)
+// -----------------------------------------------------
+if ($metodoHttp === 'POST' && preg_match('#^/viaticos/actualizar/(\d+)$#', $rutaSolicitada, $coincidencias)) {
+    $idViatico = (int) $coincidencias[1];
+    $resultado = $viaticoController->actualizar($idViatico, $_POST);
+
+    if (!$resultado['exito']) {
+        $viatico = $viaticoController->verDetalleConTrabajo($idViatico);
+
+        renderizarVista(__DIR__ . '/app/Views/viaticos/formulario.php', [
+            'viatico' => $viatico,
+            'errores' => [$resultado['mensaje']],
+        ]);
+        exit;
+    }
+
+    header('Location: /viaticos');
+    exit;
+}
+
+// -----------------------------------------------------
+// POST /viaticos/eliminar/{id}  (eliminar registro, botón 🗑️)
+// -----------------------------------------------------
+if ($metodoHttp === 'POST' && preg_match('#^/viaticos/eliminar/(\d+)$#', $rutaSolicitada, $coincidencias)) {
+    $idViatico = (int) $coincidencias[1];
+    $viaticoController->eliminar($idViatico);
+
+    header('Location: /viaticos');
+    exit;
+}
+
+// -----------------------------------------------------
+// GET /trabajos/buscar-autocompletado
+// -----------------------------------------------------
+
+if ($metodoHttp === 'GET' && $rutaSolicitada === '/trabajos/buscar-autocompletado') {
+
+    header('Content-Type: application/json; charset=utf-8');
+
+    echo json_encode(
+        $trabajoController->buscarAutocompletado($_GET['q'] ?? '')
+    );
+
+    exit;
+}
+
+// -----------------------------------------------------
+// Ninguna ruta coincidió
+// -----------------------------------------------------
+http_response_code(404);
+echo 'Página no encontrada.';
