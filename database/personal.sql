@@ -12,13 +12,11 @@ CREATE TABLE personal (
 
     id_personal INT AUTO_INCREMENT PRIMARY KEY,
 
-    -- Datos personales
     nombre_completo VARCHAR(150) NOT NULL,
     telefono_principal VARCHAR(30) NOT NULL,
     telefono_secundario VARCHAR(30) NULL,
     telefono_contacto VARCHAR(30) NULL,
 
-    -- Datos laborales
     cargo ENUM(
         'Topógrafo','Ayudante','Dibujante','Cadista','Ingeniero',
         'Supervisor','Chofer','Administrativo','Otro'
@@ -31,9 +29,6 @@ CREATE TABLE personal (
     observaciones TEXT NULL,
 
     creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-
-    CONSTRAINT fk_personal_responsable
-        FOREIGN KEY (id_responsable) REFERENCES usuarios(id_usuario)
+    actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

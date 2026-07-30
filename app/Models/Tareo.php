@@ -106,4 +106,18 @@ class Tareo
 
         return $stmt->execute(['id_tareo' => $idTareo]);
     }
+
+    public function listarPersonalPorTrabajo(int $idTrabajo): array
+    {
+        $sql = "SELECT DISTINCT p.id_personal, p.nombre_completo
+                FROM tareo tar
+                INNER JOIN personal p ON p.id_personal = tar.id_personal
+                WHERE tar.id_trabajo = :id_trabajo
+                ORDER BY p.nombre_completo ASC";
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute(['id_trabajo' => $idTrabajo]);
+
+        return $stmt->fetchAll();
+    }
 }

@@ -106,4 +106,9 @@ class TareoController
 
         return null;
     }
+
+    public function listarPersonalPorTrabajo(int $idTrabajo): array
+    {
+        return $this->tareoModel->listarPersonalPorTrabajo($idTrabajo);
+    }
 }

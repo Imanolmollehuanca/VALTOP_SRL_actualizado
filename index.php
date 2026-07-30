@@ -18,6 +18,7 @@ require_once __DIR__ . '/app/Controllers/PersonalController.php';
 require_once __DIR__ . '/app/Controllers/TareoController.php';
 require_once __DIR__ . '/app/Controllers/ViaticoController.php';
 require_once __DIR__ . '/app/Models/Usuario.php';
+require_once __DIR__ . '/app/Controllers/MaterialController.php';
 
 // Quitamos query string y la barra final para comparar rutas limpias.
 $rutaSolicitada = strtok($_SERVER['REQUEST_URI'], '?');
@@ -31,6 +32,7 @@ $personalController = new PersonalController();
 $tareoController = new TareoController();
 $viaticoController = new ViaticoController();
 $usuarioModel = new Usuario();
+$materialController = new MaterialController();
 
 /**
  * Helper para incluir una vista con variables ya resueltas,
@@ -78,7 +80,7 @@ if ($metodoHttp === 'GET' && $rutaSolicitada === '/modulos') {
         ['nombre' => 'Equipos',           'icono' => '🚜', 'ruta' => '/equipos'],
         ['nombre' => 'Tareo',             'icono' => '🕒', 'ruta' => '/tareo'],
         ['nombre' => 'Viáticos',          'icono' => '🧳', 'ruta' => '/viaticos'],
-        ['nombre' => 'Materiales',        'icono' => '📦', 'ruta' => null],
+        ['nombre' => 'Materiales',        'icono' => '📦', 'ruta' => '/materiales'],
         ['nombre' => 'Gastos Generales',  'icono' => '🧾', 'ruta' => null],
         ['nombre' => 'Costo Financiero',  'icono' => '💰', 'ruta' => null],
         ['nombre' => 'Reportes',          'icono' => '📊', 'ruta' => null],
@@ -710,6 +712,193 @@ if ($metodoHttp === 'GET' && $rutaSolicitada === '/trabajos/buscar-autocompletad
         $trabajoController->buscarAutocompletado($_GET['q'] ?? '')
     );
 
+    exit;
+}
+
+// -----------------------------------------------------
+// GET /materiales  (tabla principal: todos los trabajos)
+// -----------------------------------------------------
+if ($metodoHttp === 'GET' && $rutaSolicitada === '/materiales') {
+    $resumen = $materialController->listarResumen();
+
+    renderizarVista(__DIR__ . '/app/Views/materiales/listado.php', [
+        'resumen' => $resumen,
+    ]);
+    exit;
+}
+
+// -----------------------------------------------------
+// GET /materiales/ver/{id}  (solo lectura del trabajo)
+// -----------------------------------------------------
+if ($metodoHttp === 'GET' && preg_match('#^/materiales/ver/(\d+)$#', $rutaSolicitada, $coincidencias)) {
+    $idTrabajo = (int) $coincidencias[1];
+    $trabajo   = $trabajoController->verDetalle($idTrabajo);
+
+    if ($trabajo === null) {
+        http_response_code(404);
+        echo 'Trabajo no encontrado.';
+        exit;
+    }
+
+    $personal = $tareoController->listarPersonalPorTrabajo($idTrabajo);
+
+    renderizarVista(__DIR__ . '/app/Views/materiales/ver.php', [
+        'trabajo'  => $trabajo,
+        'personal' => $personal,
+    ]);
+    exit;
+}
+
+// -----------------------------------------------------
+// GET /materiales/trabajo/{id}  (materiales de un trabajo)
+// -----------------------------------------------------
+if ($metodoHttp === 'GET' && preg_match('#^/materiales/trabajo/(\d+)$#', $rutaSolicitada, $coincidencias)) {
+    $idTrabajo = (int) $coincidencias[1];
+    $trabajo   = $trabajoController->verDetalle($idTrabajo);
+
+    if ($trabajo === null) {
+        http_response_code(404);
+        echo 'Trabajo no encontrado.';
+        exit;
+    }
+
+    $materiales = $materialController->listarMaterialesDeTrabajo($idTrabajo);
+    $catalogo   = $materialController->listarCatalogo();
+    $costoTotal = $materialController->costoTotalDeTrabajo($idTrabajo);
+
+    renderizarVista(__DIR__ . '/app/Views/materiales/detalle.php', [
+        'trabajo'    => $trabajo,
+        'materiales' => $materiales,
+        'catalogo'   => $catalogo,
+        'costoTotal' => $costoTotal,
+        'errores'    => [],
+    ]);
+    exit;
+}
+
+// -----------------------------------------------------
+// POST /materiales/trabajo/{id}/guardar  (agregar material)
+// -----------------------------------------------------
+if ($metodoHttp === 'POST' && preg_match('#^/materiales/trabajo/(\d+)/guardar$#', $rutaSolicitada, $coincidencias)) {
+    $idTrabajo = (int) $coincidencias[1];
+    $datos = $_POST;
+
+    // El campo Material es texto libre con autocompletado: se busca
+    // o se crea en el catálogo antes de guardar el detalle.
+    $idMaterial = $materialController->obtenerOCrearIdMaterialPorNombre($datos['nombre_material'] ?? '');
+
+    if ($idMaterial === false) {
+        $trabajo    = $trabajoController->verDetalle($idTrabajo);
+        $materiales = $materialController->listarMaterialesDeTrabajo($idTrabajo);
+        $catalogo   = $materialController->listarCatalogo();
+        $costoTotal = $materialController->costoTotalDeTrabajo($idTrabajo);
+
+        renderizarVista(__DIR__ . '/app/Views/materiales/detalle.php', [
+            'trabajo'    => $trabajo,
+            'materiales' => $materiales,
+            'catalogo'   => $catalogo,
+            'costoTotal' => $costoTotal,
+            'errores'    => ['El nombre del material es obligatorio.'],
+        ]);
+        exit;
+    }
+
+    $datos['id_material'] = $idMaterial;
+
+    $resultado = $materialController->registrar($idTrabajo, $datos);
+
+    if (!$resultado['exito']) {
+        $trabajo    = $trabajoController->verDetalle($idTrabajo);
+        $materiales = $materialController->listarMaterialesDeTrabajo($idTrabajo);
+        $catalogo   = $materialController->listarCatalogo();
+        $costoTotal = $materialController->costoTotalDeTrabajo($idTrabajo);
+
+        renderizarVista(__DIR__ . '/app/Views/materiales/detalle.php', [
+            'trabajo'    => $trabajo,
+            'materiales' => $materiales,
+            'catalogo'   => $catalogo,
+            'costoTotal' => $costoTotal,
+            'errores'    => [$resultado['mensaje']],
+        ]);
+        exit;
+    }
+
+    header('Location: /materiales/trabajo/' . $idTrabajo);
+    exit;
+}
+
+// -----------------------------------------------------
+// POST /materiales/trabajo/{id}/actualizar/{idDetalle}
+// -----------------------------------------------------
+if ($metodoHttp === 'POST' && preg_match('#^/materiales/trabajo/(\d+)/actualizar/(\d+)$#', $rutaSolicitada, $coincidencias)) {
+    $idTrabajo         = (int) $coincidencias[1];
+    $idTrabajoMaterial = (int) $coincidencias[2];
+    $datos = $_POST;
+
+    $idMaterial = $materialController->obtenerOCrearIdMaterialPorNombre($datos['nombre_material'] ?? '');
+
+    if ($idMaterial === false) {
+        $trabajo    = $trabajoController->verDetalle($idTrabajo);
+        $materiales = $materialController->listarMaterialesDeTrabajo($idTrabajo);
+        $catalogo   = $materialController->listarCatalogo();
+        $costoTotal = $materialController->costoTotalDeTrabajo($idTrabajo);
+
+        renderizarVista(__DIR__ . '/app/Views/materiales/detalle.php', [
+            'trabajo'    => $trabajo,
+            'materiales' => $materiales,
+            'catalogo'   => $catalogo,
+            'costoTotal' => $costoTotal,
+            'errores'    => ['El nombre del material es obligatorio.'],
+        ]);
+        exit;
+    }
+
+    $datos['id_material'] = $idMaterial;
+
+    $resultado = $materialController->actualizar($idTrabajoMaterial, $datos);
+
+    if (!$resultado['exito']) {
+        $trabajo    = $trabajoController->verDetalle($idTrabajo);
+        $materiales = $materialController->listarMaterialesDeTrabajo($idTrabajo);
+        $catalogo   = $materialController->listarCatalogo();
+        $costoTotal = $materialController->costoTotalDeTrabajo($idTrabajo);
+
+        renderizarVista(__DIR__ . '/app/Views/materiales/detalle.php', [
+            'trabajo'    => $trabajo,
+            'materiales' => $materiales,
+            'catalogo'   => $catalogo,
+            'costoTotal' => $costoTotal,
+            'errores'    => [$resultado['mensaje']],
+        ]);
+        exit;
+    }
+
+    header('Location: /materiales/trabajo/' . $idTrabajo);
+    exit;
+}
+
+// -----------------------------------------------------
+// POST /materiales/trabajo/{id}/eliminar/{idDetalle}
+// -----------------------------------------------------
+if ($metodoHttp === 'POST' && preg_match('#^/materiales/trabajo/(\d+)/eliminar/(\d+)$#', $rutaSolicitada, $coincidencias)) {
+    $idTrabajo         = (int) $coincidencias[1];
+    $idTrabajoMaterial = (int) $coincidencias[2];
+
+    $materialController->eliminar($idTrabajoMaterial);
+
+    header('Location: /materiales/trabajo/' . $idTrabajo);
+    exit;
+}
+
+// -----------------------------------------------------
+// POST /materiales/eliminar-todos/{idTrabajo}
+// -----------------------------------------------------
+if ($metodoHttp === 'POST' && preg_match('#^/materiales/eliminar-todos/(\d+)$#', $rutaSolicitada, $coincidencias)) {
+    $idTrabajo = (int) $coincidencias[1];
+
+    $materialController->eliminarTodosDeTrabajo($idTrabajo);
+
+    header('Location: /materiales');
     exit;
 }
 
