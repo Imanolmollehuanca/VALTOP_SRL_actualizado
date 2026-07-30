@@ -1058,3 +1058,40 @@ a {
     color: white;
     border-color: #2563eb;
 }
+
+/* =====================================================
+   GASTOS GENERALES — botón de peligro y panel de total
+   ===================================================== */
+
+.btn-peligro {
+    background-color: #FEF2F2;
+    color: #B91C1C;
+    border: 1px solid #FCA5A5;
+}
+
+.btn-peligro:hover {
+    background-color: #FEE2E2;
+}
+
+.panel-total-gastos {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background-color: var(--color-primario-suave);
+    border-radius: var(--radio-lg);
+    padding: 18px 24px;
+    margin-top: 18px;
+}
+
+.total-gastos-etiqueta {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--color-texto);
+    letter-spacing: 0.02em;
+}
+
+.total-gastos-monto {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--color-primario);
+}

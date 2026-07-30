@@ -19,6 +19,7 @@ require_once __DIR__ . '/app/Controllers/TareoController.php';
 require_once __DIR__ . '/app/Controllers/ViaticoController.php';
 require_once __DIR__ . '/app/Models/Usuario.php';
 require_once __DIR__ . '/app/Controllers/MaterialController.php';
+require_once __DIR__ . '/app/Controllers/GastoGeneralController.php';
 
 // Quitamos query string y la barra final para comparar rutas limpias.
 $rutaSolicitada = strtok($_SERVER['REQUEST_URI'], '?');
@@ -33,6 +34,7 @@ $tareoController = new TareoController();
 $viaticoController = new ViaticoController();
 $usuarioModel = new Usuario();
 $materialController = new MaterialController();
+$gastoGeneralController = new GastoGeneralController();
 
 /**
  * Helper para incluir una vista con variables ya resueltas,
@@ -81,7 +83,7 @@ if ($metodoHttp === 'GET' && $rutaSolicitada === '/modulos') {
         ['nombre' => 'Tareo',             'icono' => '🕒', 'ruta' => '/tareo'],
         ['nombre' => 'Viáticos',          'icono' => '🧳', 'ruta' => '/viaticos'],
         ['nombre' => 'Materiales',        'icono' => '📦', 'ruta' => '/materiales'],
-        ['nombre' => 'Gastos Generales',  'icono' => '🧾', 'ruta' => null],
+        ['nombre' => 'Gastos Generales',  'icono' => '🧾', 'ruta' => '/gastos-generales'],
         ['nombre' => 'Costo Financiero',  'icono' => '💰', 'ruta' => null],
         ['nombre' => 'Reportes',          'icono' => '📊', 'ruta' => null],
     ];
@@ -899,6 +901,98 @@ if ($metodoHttp === 'POST' && preg_match('#^/materiales/eliminar-todos/(\d+)$#',
     $materialController->eliminarTodosDeTrabajo($idTrabajo);
 
     header('Location: /materiales');
+    exit;
+}
+
+// -----------------------------------------------------
+// GET /gastos-generales  (listado, con búsqueda opcional)
+// -----------------------------------------------------
+if ($metodoHttp === 'GET' && $rutaSolicitada === '/gastos-generales') {
+    $busquedaActual = $_GET['buscar'] ?? '';
+    $gastos = $gastoGeneralController->listar($busquedaActual);
+    $total  = $gastoGeneralController->total();
+
+    renderizarVista(__DIR__ . '/app/Views/gastos-generales/listado.php', [
+        'gastos'         => $gastos,
+        'total'          => $total,
+        'busquedaActual' => $busquedaActual,
+        'errores'        => [],
+        'gastoFallido'   => null,
+    ]);
+    exit;
+}
+
+// -----------------------------------------------------
+// POST /gastos-generales/guardar  (registrar nuevo gasto)
+// -----------------------------------------------------
+if ($metodoHttp === 'POST' && $rutaSolicitada === '/gastos-generales/guardar') {
+    $resultado = $gastoGeneralController->registrar($_POST);
+
+    if (!$resultado['exito']) {
+        $gastos = $gastoGeneralController->listar();
+        $total  = $gastoGeneralController->total();
+
+        renderizarVista(__DIR__ . '/app/Views/gastos-generales/listado.php', [
+            'gastos'         => $gastos,
+            'total'          => $total,
+            'busquedaActual' => '',
+            'errores'        => [$resultado['mensaje']],
+            'gastoFallido'   => $_POST,
+        ]);
+        exit;
+    }
+
+    header('Location: /gastos-generales');
+    exit;
+}
+
+// -----------------------------------------------------
+// POST /gastos-generales/actualizar/{id}
+// -----------------------------------------------------
+if ($metodoHttp === 'POST' && preg_match('#^/gastos-generales/actualizar/(\d+)$#', $rutaSolicitada, $coincidencias)) {
+    $idGasto   = (int) $coincidencias[1];
+    $resultado = $gastoGeneralController->actualizar($idGasto, $_POST);
+
+    if (!$resultado['exito']) {
+        $gastos = $gastoGeneralController->listar();
+        $total  = $gastoGeneralController->total();
+
+        $gastoFallido = $_POST;
+        $gastoFallido['id_gasto'] = $idGasto;
+
+        renderizarVista(__DIR__ . '/app/Views/gastos-generales/listado.php', [
+            'gastos'         => $gastos,
+            'total'          => $total,
+            'busquedaActual' => '',
+            'errores'        => [$resultado['mensaje']],
+            'gastoFallido'   => $gastoFallido,
+        ]);
+        exit;
+    }
+
+    header('Location: /gastos-generales');
+    exit;
+}
+
+// -----------------------------------------------------
+// POST /gastos-generales/eliminar/{id}
+// -----------------------------------------------------
+if ($metodoHttp === 'POST' && preg_match('#^/gastos-generales/eliminar/(\d+)$#', $rutaSolicitada, $coincidencias)) {
+    $idGasto = (int) $coincidencias[1];
+
+    $gastoGeneralController->eliminar($idGasto);
+
+    header('Location: /gastos-generales');
+    exit;
+}
+
+// -----------------------------------------------------
+// POST /gastos-generales/vaciar  (elimina TODOS los registros)
+// -----------------------------------------------------
+if ($metodoHttp === 'POST' && $rutaSolicitada === '/gastos-generales/vaciar') {
+    $gastoGeneralController->vaciarLista();
+
+    header('Location: /gastos-generales');
     exit;
 }
 
