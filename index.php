@@ -20,6 +20,7 @@ require_once __DIR__ . '/app/Controllers/ViaticoController.php';
 require_once __DIR__ . '/app/Models/Usuario.php';
 require_once __DIR__ . '/app/Controllers/MaterialController.php';
 require_once __DIR__ . '/app/Controllers/GastoGeneralController.php';
+require_once __DIR__ . '/app/Controllers/CostoFinancieroController.php';
 
 // Quitamos query string y la barra final para comparar rutas limpias.
 $rutaSolicitada = strtok($_SERVER['REQUEST_URI'], '?');
@@ -35,6 +36,7 @@ $viaticoController = new ViaticoController();
 $usuarioModel = new Usuario();
 $materialController = new MaterialController();
 $gastoGeneralController = new GastoGeneralController();
+$costoFinancieroController = new CostoFinancieroController();
 
 /**
  * Helper para incluir una vista con variables ya resueltas,
@@ -84,7 +86,7 @@ if ($metodoHttp === 'GET' && $rutaSolicitada === '/modulos') {
         ['nombre' => 'Viáticos',          'icono' => '🧳', 'ruta' => '/viaticos'],
         ['nombre' => 'Materiales',        'icono' => '📦', 'ruta' => '/materiales'],
         ['nombre' => 'Gastos Generales',  'icono' => '🧾', 'ruta' => '/gastos-generales'],
-        ['nombre' => 'Costo Financiero',  'icono' => '💰', 'ruta' => null],
+        ['nombre' => 'Costo Financiero',  'icono' => '💰', 'ruta' => '/costo-financiero'],
         ['nombre' => 'Reportes',          'icono' => '📊', 'ruta' => null],
     ];
 
@@ -993,6 +995,93 @@ if ($metodoHttp === 'POST' && $rutaSolicitada === '/gastos-generales/vaciar') {
     $gastoGeneralController->vaciarLista();
 
     header('Location: /gastos-generales');
+    exit;
+}
+
+// -----------------------------------------------------
+// GET /costo-financiero  (listado: todos los trabajos con su
+// costo financiero calculado dinámicamente a partir de los
+// demás módulos. No registra trabajos nuevos.)
+// -----------------------------------------------------
+if ($metodoHttp === 'GET' && $rutaSolicitada === '/costo-financiero') {
+    $costos = $costoFinancieroController->listar();
+
+    renderizarVista(__DIR__ . '/app/Views/costo-financiero/listado.php', [
+        'costos' => $costos,
+    ]);
+    exit;
+}
+
+// -----------------------------------------------------
+// GET /costo-financiero/recalcular  (fuerza el recálculo de
+// todos los trabajos y vuelve al listado)
+// -----------------------------------------------------
+if ($metodoHttp === 'GET' && $rutaSolicitada === '/costo-financiero/recalcular') {
+    $costoFinancieroController->recalcular();
+
+    header('Location: /costo-financiero');
+    exit;
+}
+
+// -----------------------------------------------------
+// GET /costo-financiero/ver/{id}  (detalle de solo lectura, botón 👁️)
+// -----------------------------------------------------
+if ($metodoHttp === 'GET' && preg_match('#^/costo-financiero/ver/(\d+)$#', $rutaSolicitada, $coincidencias)) {
+    $idTrabajo = (int) $coincidencias[1];
+    $detalle   = $costoFinancieroController->verDetalle($idTrabajo);
+
+    if ($detalle === null) {
+        http_response_code(404);
+        echo 'Trabajo no encontrado.';
+        exit;
+    }
+
+    renderizarVista(__DIR__ . '/app/Views/costo-financiero/detalle.php', [
+        'detalle' => $detalle,
+    ]);
+    exit;
+}
+
+// -----------------------------------------------------
+// GET /costo-financiero/editar/{id}  (mostrar formulario con
+// los datos calculados y los campos editables)
+// -----------------------------------------------------
+if ($metodoHttp === 'GET' && preg_match('#^/costo-financiero/editar/(\d+)$#', $rutaSolicitada, $coincidencias)) {
+    $idTrabajo = (int) $coincidencias[1];
+    $detalle   = $costoFinancieroController->verDetalle($idTrabajo);
+
+    if ($detalle === null) {
+        http_response_code(404);
+        echo 'Trabajo no encontrado.';
+        exit;
+    }
+
+    renderizarVista(__DIR__ . '/app/Views/costo-financiero/formulario.php', [
+        'detalle' => $detalle,
+        'errores' => [],
+    ]);
+    exit;
+}
+
+// -----------------------------------------------------
+// POST /costo-financiero/actualizar/{id}  (guardar fecha
+// factura, fecha cobro y % financiero)
+// -----------------------------------------------------
+if ($metodoHttp === 'POST' && preg_match('#^/costo-financiero/actualizar/(\d+)$#', $rutaSolicitada, $coincidencias)) {
+    $idTrabajo = (int) $coincidencias[1];
+    $resultado = $costoFinancieroController->actualizar($idTrabajo, $_POST);
+
+    if (!$resultado['exito']) {
+        $detalle = $costoFinancieroController->verDetalle($idTrabajo);
+
+        renderizarVista(__DIR__ . '/app/Views/costo-financiero/formulario.php', [
+            'detalle' => $detalle,
+            'errores' => [$resultado['mensaje']],
+        ]);
+        exit;
+    }
+
+    header('Location: /costo-financiero');
     exit;
 }
 

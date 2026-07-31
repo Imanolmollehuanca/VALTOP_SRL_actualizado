@@ -1095,3 +1095,153 @@ a {
     font-weight: 700;
     color: var(--color-primario);
 }
+
+/* =====================================================
+   COSTO FINANCIERO — panel de total, formulario y detalle
+   ===================================================== */
+
+/* --- Listado: panel del total (reutiliza el patrón de
+   .panel-total-gastos con su propio nombre de clase) --- */
+.card-total-financiero {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background-color: var(--color-primario-suave);
+    border-radius: var(--radio-lg);
+    padding: 18px 24px;
+    margin-top: 18px;
+}
+
+.titulo-total {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--color-texto);
+    letter-spacing: 0.02em;
+}
+
+.monto-total {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--color-primario);
+}
+
+/* --- Formulario de edición (reutiliza .campo, .grupo-campos
+   funciona igual que .form-trabajo pero envuelto en una card) --- */
+.formulario-trabajo {
+    display: block;
+}
+
+.card-formulario {
+    background: var(--color-superficie);
+    border-radius: var(--radio-lg);
+    box-shadow: var(--sombra-suave);
+    padding: 28px 32px;
+}
+
+.card-formulario h2 {
+    margin: 0 0 6px;
+    font-size: 16px;
+    font-weight: 700;
+}
+
+.card-formulario p {
+    margin: 4px 0;
+    font-size: 13.5px;
+    color: var(--color-texto-suave);
+}
+
+.card-formulario hr {
+    border: none;
+    border-top: 1px solid var(--color-borde);
+    margin: 20px 0;
+}
+
+.grupo-campos {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px 24px;
+    margin-bottom: 4px;
+}
+
+.grupo-campos .campo input[readonly] {
+    background-color: var(--color-fondo);
+    color: var(--color-texto-suave);
+    cursor: default;
+}
+
+.card-formulario .acciones-formulario {
+    grid-column: unset;
+    margin-top: 24px;
+}
+
+@media (max-width: 720px) {
+    .grupo-campos {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* --- Detalle de solo lectura --- */
+.card-detalle-financiero {
+    background: var(--color-superficie);
+    border-radius: var(--radio-lg);
+    box-shadow: var(--sombra-suave);
+    padding: 28px 32px;
+}
+
+.detalle-cabecera {
+    margin-bottom: 20px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--color-borde);
+}
+
+.detalle-cabecera h2 {
+    margin: 0 0 6px;
+    font-size: 18px;
+    font-weight: 700;
+}
+
+.detalle-cabecera span {
+    font-size: 13.5px;
+    color: var(--color-texto-suave);
+}
+
+.detalle-cabecera strong {
+    font-size: 14px;
+    color: var(--color-texto);
+}
+
+.tabla-detalle-financiero {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.tabla-detalle-financiero td {
+    padding: 12px 4px;
+    border-bottom: 1px solid var(--color-borde);
+    font-size: 13.5px;
+}
+
+.tabla-detalle-financiero tr:last-child td {
+    border-bottom: none;
+}
+
+.tabla-detalle-financiero .fila-total td {
+    font-size: 14.5px;
+    border-top: 1.5px solid var(--color-borde);
+}
+
+.tabla-detalle-financiero .fila-total-financiero td {
+    background-color: var(--color-primario-suave);
+    font-size: 15.5px;
+}
+
+.tabla-detalle-financiero .fila-total-financiero .columna-precio strong {
+    color: var(--color-primario);
+}
+
+.card-detalle-financiero .acciones-formulario {
+    grid-column: unset;
+    margin-top: 24px;
+    padding-top: 20px;
+    border-top: 1px solid var(--color-borde);
+}
