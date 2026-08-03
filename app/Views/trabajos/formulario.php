@@ -155,19 +155,20 @@ function valorCampo(?array $trabajo, string $campo): string
 
             <div class="campo campo-estado-independiente">
                 <label for="estado">Estado</label>
-                <form action="/trabajos/cambiar-estado/<?= (int) $trabajo['id_trabajo'] ?>" method="POST" class="form-inline-estado">
-                    <select id="estado" name="estado" onchange="this.form.submit()">
-                        <?php foreach (TrabajoController::ESTADOS_VALIDOS as $estado): ?>
-                            <option
-                                value="<?= htmlspecialchars($estado) ?>"
-                                <?= ($trabajo['estado'] === $estado) ? 'selected' : '' ?>
-                            >
-                                <?= htmlspecialchars($estado) ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                </form>
+
+                <select id="estado" name="estado">
+                    <?php foreach (TrabajoController::ESTADOS_VALIDOS as $estado): ?>
+                        <option
+                            value="<?= htmlspecialchars($estado) ?>"
+                            <?= ($trabajo['estado'] === $estado) ? 'selected' : '' ?>
+                        >
+                            <?= htmlspecialchars($estado) ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+
             </div>
+
         <?php endif; ?>
 
         <div class="campo">

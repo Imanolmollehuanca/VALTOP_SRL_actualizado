@@ -23,20 +23,20 @@ class Trabajo
         $this->db = Database::conectar();
     }
 
-    public function crear(array $datos): bool
+    public function crear(array $datos): int|false
     {
         $sql = "INSERT INTO trabajos
                 (codigo_trabajo, fecha_registro, id_cliente, proyecto,
-                 descripcion, ubicacion, id_responsable, precio_neto,
-                 fecha_inicio, fecha_fin, estado)
+                descripcion, ubicacion, id_responsable, precio_neto,
+                fecha_inicio, fecha_fin, estado)
                 VALUES
                 (:codigo_trabajo, :fecha_registro, :id_cliente, :proyecto,
-                 :descripcion, :ubicacion, :id_responsable, :precio_neto,
-                 :fecha_inicio, :fecha_fin, :estado)";
+                :descripcion, :ubicacion, :id_responsable, :precio_neto,
+                :fecha_inicio, :fecha_fin, :estado)";
 
         $stmt = $this->db->prepare($sql);
 
-        return $stmt->execute([
+        $ok = $stmt->execute([
             'codigo_trabajo'  => $datos['codigo_trabajo'],
             'fecha_registro'  => $datos['fecha_registro'],
             'id_cliente'      => $datos['id_cliente'],
@@ -49,6 +49,12 @@ class Trabajo
             'fecha_fin'       => $datos['fecha_fin'],
             'estado'          => $datos['estado'] ?? 'Pendiente',
         ]);
+
+        if (!$ok) {
+            return false;
+        }
+
+        return (int) $this->db->lastInsertId();
     }
 
 /**

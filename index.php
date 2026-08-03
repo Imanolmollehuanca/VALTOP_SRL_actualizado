@@ -21,6 +21,7 @@ require_once __DIR__ . '/app/Models/Usuario.php';
 require_once __DIR__ . '/app/Controllers/MaterialController.php';
 require_once __DIR__ . '/app/Controllers/GastoGeneralController.php';
 require_once __DIR__ . '/app/Controllers/CostoFinancieroController.php';
+require_once __DIR__ . '/app/Controllers/ReporteController.php';
 
 // Quitamos query string y la barra final para comparar rutas limpias.
 $rutaSolicitada = strtok($_SERVER['REQUEST_URI'], '?');
@@ -37,6 +38,7 @@ $usuarioModel = new Usuario();
 $materialController = new MaterialController();
 $gastoGeneralController = new GastoGeneralController();
 $costoFinancieroController = new CostoFinancieroController();
+$reporteController = new ReporteController();
 
 /**
  * Helper para incluir una vista con variables ya resueltas,
@@ -87,7 +89,7 @@ if ($metodoHttp === 'GET' && $rutaSolicitada === '/modulos') {
         ['nombre' => 'Materiales',        'icono' => '📦', 'ruta' => '/materiales'],
         ['nombre' => 'Gastos Generales',  'icono' => '🧾', 'ruta' => '/gastos-generales'],
         ['nombre' => 'Costo Financiero',  'icono' => '💰', 'ruta' => '/costo-financiero'],
-        ['nombre' => 'Reportes',          'icono' => '📊', 'ruta' => null],
+        ['nombre' => 'Reportes',          'icono' => '📊', 'ruta' => '/reportes'],
     ];
 
     renderizarVista(__DIR__ . '/app/Views/modulos/listado.php', [
@@ -1082,6 +1084,119 @@ if ($metodoHttp === 'POST' && preg_match('#^/costo-financiero/actualizar/(\d+)$#
     }
 
     header('Location: /costo-financiero');
+    exit;
+}
+
+// -----------------------------------------------------
+// GET /reportes  (pantalla principal, con filtros)
+// -----------------------------------------------------
+if ($metodoHttp === 'GET' && $rutaSolicitada === '/reportes') {
+    $filtrosActuales = [
+        'fecha_desde'    => $_GET['fecha_desde'] ?? '',
+        'fecha_hasta'    => $_GET['fecha_hasta'] ?? '',
+        'id_responsable' => $_GET['id_responsable'] ?? '',
+        'estado'         => $_GET['estado'] ?? '',
+    ];
+
+    $filas       = $reporteController->listar($filtrosActuales);
+    $resumen     = $reporteController->resumen($filas);
+    $responsables = $usuarioModel->listar();
+
+    renderizarVista(__DIR__ . '/app/Views/reportes/listado.php', [
+        'filas'            => $filas,
+        'resumen'          => $resumen,
+        'responsables'     => $responsables,
+        'filtrosActuales'  => $filtrosActuales,
+    ]);
+    exit;
+}
+
+// -----------------------------------------------------
+// GET /reportes/ver/{id}  (detalle de solo lectura)
+// -----------------------------------------------------
+if ($metodoHttp === 'GET' && preg_match('#^/reportes/ver/(\d+)$#', $rutaSolicitada, $coincidencias)) {
+    $idTrabajo = (int) $coincidencias[1];
+    $fila = $reporteController->verDetalle($idTrabajo);
+
+    if ($fila === null) {
+        http_response_code(404);
+        echo 'Trabajo no encontrado.';
+        exit;
+    }
+
+    renderizarVista(__DIR__ . '/app/Views/reportes/ver.php', [
+        'fila' => $fila,
+    ]);
+    exit;
+}
+
+// -----------------------------------------------------
+// GET /reportes/exportar-excel  (CSV compatible con Excel)
+// -----------------------------------------------------
+if ($metodoHttp === 'GET' && $rutaSolicitada === '/reportes/exportar-excel') {
+    $filtrosActuales = [
+        'fecha_desde'    => $_GET['fecha_desde'] ?? '',
+        'fecha_hasta'    => $_GET['fecha_hasta'] ?? '',
+        'id_responsable' => $_GET['id_responsable'] ?? '',
+        'estado'         => $_GET['estado'] ?? '',
+    ];
+
+    $filas = $reporteController->listar($filtrosActuales);
+
+    header('Content-Type: text/csv; charset=UTF-8');
+    header('Content-Disposition: attachment; filename="reporte_valtop.csv"');
+
+    $salida = fopen('php://output', 'w');
+    // BOM UTF-8: para que Excel reconozca acentos correctamente
+    fwrite($salida, "\xEF\xBB\xBF");
+
+    fputcsv($salida, [
+        'Código', 'Cliente', 'Proyecto', 'Responsable', 'Precio Neto',
+        'Capital Invertido', 'Costo Financiero', 'Utilidad', 'Estado', 'Estado de Cobro',
+    ]);
+
+    foreach ($filas as $fila) {
+        fputcsv($salida, [
+            $fila['codigo_trabajo'],
+            $fila['nombre_cliente'] ?? '',
+            $fila['proyecto'],
+            $fila['nombre_responsable'] ?? '',
+            number_format((float) $fila['precio_neto'], 2, '.', ''),
+            number_format((float) $fila['capital_invertido'], 2, '.', ''),
+            number_format((float) $fila['costo_financiero'], 2, '.', ''),
+            number_format((float) $fila['utilidad'], 2, '.', ''),
+            $fila['estado'],
+            $fila['estado_cobro'],
+        ]);
+    }
+
+    fclose($salida);
+    exit;
+}
+
+// -----------------------------------------------------
+// GET /reportes/exportar-pdf  (vista imprimible, "Guardar como PDF"
+// desde el navegador — sin depender de una librería externa)
+// -----------------------------------------------------
+if ($metodoHttp === 'GET' && $rutaSolicitada === '/reportes/exportar-pdf') {
+    $filtrosActuales = [
+        'fecha_desde'    => $_GET['fecha_desde'] ?? '',
+        'fecha_hasta'    => $_GET['fecha_hasta'] ?? '',
+        'id_responsable' => $_GET['id_responsable'] ?? '',
+        'estado'         => $_GET['estado'] ?? '',
+    ];
+
+    $filas   = $reporteController->listar($filtrosActuales);
+    $resumen = $reporteController->resumen($filas);
+
+    renderizarVista(__DIR__ . '/app/Views/reportes/listado.php', [
+        'filas'           => $filas,
+        'resumen'         => $resumen,
+        'responsables'    => $usuarioModel->listar(),
+        'filtrosActuales' => $filtrosActuales,
+    ]);
+
+    echo '<script>window.print();</script>';
     exit;
 }
 

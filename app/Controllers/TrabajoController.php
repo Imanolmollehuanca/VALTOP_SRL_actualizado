@@ -2,6 +2,7 @@
 
 require_once __DIR__ . '/../Models/Trabajo.php';
 require_once __DIR__ . '/../Models/Cliente.php';
+require_once __DIR__ . '/../Models/CostoFinanciero.php';
 
 /**
  * Clase TrabajoController
@@ -99,13 +100,22 @@ class TrabajoController
         $datosFormulario['fecha_registro'] = date('Y-m-d');
         $datosFormulario['estado'] = $datosFormulario['estado'] ?? 'Pendiente';
 
-        $creado = $this->trabajoModel->crear($datosFormulario);
+        $idTrabajo = $this->trabajoModel->crear($datosFormulario);
+
+        if ($idTrabajo !== false) {
+
+            $costo = new CostoFinanciero();
+            $costo->asegurarRegistro($idTrabajo);
+
+            return [
+                'exito'   => true,
+                'mensaje' => 'Trabajo registrado correctamente.',
+            ];
+        }
 
         return [
-            'exito'   => $creado,
-            'mensaje' => $creado
-                ? 'Trabajo registrado correctamente.'
-                : 'Ocurrió un error al registrar el trabajo.',
+            'exito'   => false,
+            'mensaje' => 'Ocurrió un error al registrar el trabajo.',
         ];
     }
 
@@ -126,6 +136,28 @@ class TrabajoController
         $errorValidacion = $this->validarReglasDeNegocio($datosFormulario);
         if ($errorValidacion !== null) {
             return ['exito' => false, 'mensaje' => $errorValidacion];
+        }
+
+        $clienteModel = new Cliente();
+        $cliente = $clienteModel->buscarPorNombre(
+            trim($datosFormulario['cliente'])
+        );
+
+        if ($cliente) {
+
+            $datosFormulario['id_cliente'] = $cliente['id_cliente'];
+
+        } else {
+
+            $nuevoId = $clienteModel->crear([
+                'nombre_cliente' => trim($datosFormulario['cliente']),
+                'ruc' => '',
+                'telefono' => '',
+                'correo' => '',
+                'observaciones' => ''
+            ]);
+
+            $datosFormulario['id_cliente'] = $nuevoId;
         }
 
         $actualizado = $this->trabajoModel->actualizar($idTrabajo, $datosFormulario);

@@ -1245,3 +1245,145 @@ a {
     padding-top: 20px;
     border-top: 1px solid var(--color-borde);
 }
+
+/* =====================================================
+   REPORTES (Fase 10)
+   ===================================================== */
+
+.filtros-reporte {
+    background: var(--color-superficie);
+    border: 1px solid var(--color-borde);
+    border-radius: var(--radio-lg);
+    box-shadow: var(--sombra-suave);
+    padding: 20px 24px;
+    margin-bottom: 20px;
+}
+
+.grid-filtros-reporte {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr) auto;
+    gap: 16px;
+    align-items: end;
+}
+
+.campo-filtro-reporte {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.campo-filtro-reporte label {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--color-texto-suave);
+}
+
+.campo-filtro-reporte input[type="date"],
+.campo-filtro-reporte select {
+    border: 1.5px solid var(--color-borde-campo);
+    border-radius: var(--radio-md);
+    padding: 9px 12px;
+    font-family: inherit;
+    font-size: 13.5px;
+    color: var(--color-texto);
+    background-color: var(--color-superficie);
+}
+
+.campo-filtro-reporte select {
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6' fill='none'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%236B7280' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 32px;
+    cursor: pointer;
+}
+
+.campo-filtro-reporte input:focus,
+.campo-filtro-reporte select:focus {
+    outline: none;
+    border-color: var(--color-primario);
+    box-shadow: 0 0 0 3px var(--color-primario-suave);
+}
+
+.acciones-reporte {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+}
+
+.badge-debe {
+    background-color: var(--color-fracaso-bg);
+    color: var(--color-fracaso-texto);
+}
+
+.tarjetas-resumen-reporte {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 16px;
+    margin-top: 24px;
+}
+
+.tarjeta-resumen {
+    background: var(--color-superficie);
+    border: 1px solid var(--color-borde);
+    border-radius: var(--radio-lg);
+    box-shadow: var(--sombra-suave);
+    padding: 18px 20px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.tarjeta-resumen-icono {
+    width: 42px;
+    height: 42px;
+    min-width: 42px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    background-color: var(--color-primario-suave);
+}
+
+.tarjeta-resumen-trabajos .tarjeta-resumen-icono { background-color: var(--color-primario-suave); }
+.tarjeta-resumen-facturado .tarjeta-resumen-icono { background-color: var(--color-exito-suave); }
+.tarjeta-resumen-capital .tarjeta-resumen-icono { background-color: #EDE9FE; }
+.tarjeta-resumen-utilidad .tarjeta-resumen-icono { background-color: var(--color-pendiente-bg); }
+.tarjeta-resumen-cobrados .tarjeta-resumen-icono { background-color: var(--color-cobrado-bg); }
+
+.tarjeta-resumen-texto {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.tarjeta-resumen-etiqueta {
+    font-size: 12px;
+    color: var(--color-texto-suave);
+    font-weight: 600;
+}
+
+.tarjeta-resumen-valor {
+    font-size: 18px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 1000px) {
+    .grid-filtros-reporte {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    .tarjetas-resumen-reporte {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 600px) {
+    .tarjetas-resumen-reporte {
+        grid-template-columns: 1fr;
+    }
+}
