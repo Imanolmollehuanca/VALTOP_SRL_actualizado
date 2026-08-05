@@ -1300,8 +1300,8 @@ if ($metodoHttp === 'GET' && $rutaSolicitada === '/reportes/exportar-excel') {
 }
 
 // -----------------------------------------------------
-// GET /reportes/exportar-pdf  (vista imprimible, "Guardar como PDF"
-// desde el navegador — sin depender de una librería externa)
+// GET /reportes/exportar-pdf  (vista EXCLUSIVA de impresión,
+// independiente de la interfaz del sistema)
 // -----------------------------------------------------
 if ($metodoHttp === 'GET' && $rutaSolicitada === '/reportes/exportar-pdf') {
     $filtrosActuales = [
@@ -1314,14 +1314,13 @@ if ($metodoHttp === 'GET' && $rutaSolicitada === '/reportes/exportar-pdf') {
     $filas   = $reporteController->listar($filtrosActuales);
     $resumen = $reporteController->resumen($filas);
 
-    renderizarVista(__DIR__ . '/app/Views/reportes/listado.php', [
+    renderizarVista(__DIR__ . '/app/Views/reportes/imprimir.php', [
         'filas'           => $filas,
         'resumen'         => $resumen,
         'responsables'    => $usuarioModel->listar(),
         'filtrosActuales' => $filtrosActuales,
+        'nombreUsuario'   => 'Administrador',
     ]);
-
-    echo '<script>window.print();</script>';
     exit;
 }
 
