@@ -251,8 +251,19 @@ class TrabajoController
 
         return $clienteModel->buscarPorCoincidencia($texto);
     }
+
     /**
-     * Elimina un trabajo.
+     * Envía un trabajo a la Papelera (borrado lógico).
+     *
+     * Ya no elimina físicamente nada: el botón 🗑️ del listado
+     * ahora usa eliminarLogico() del Modelo, que solo marca
+     * 'eliminado_en' y no toca ninguna fila de otras tablas.
+     * El trabajo puede recuperarse luego desde la Papelera con
+     * restaurar().
+     *
+     * (El método eliminarConDependencias() del Modelo se deja
+     * intacto por si en el futuro se necesita un borrado físico
+     * definitivo desde otro flujo, pero ya no se invoca aquí).
      */
     public function eliminar(int $idTrabajo): array
     {
@@ -265,20 +276,39 @@ class TrabajoController
             ];
         }
 
-        if ($this->trabajoModel->tieneEquipos($idTrabajo)) {
-            return [
-                'exito' => false,
-                'mensaje' => 'No es posible eliminar este trabajo porque tiene equipos asociados.'
-            ];
-        }
-
-        $eliminado = $this->trabajoModel->eliminar($idTrabajo);
+        $eliminado = $this->trabajoModel->eliminarLogico($idTrabajo);
 
         return [
             'exito' => $eliminado,
             'mensaje' => $eliminado
-                ? 'Trabajo eliminado correctamente.'
-                : 'No fue posible eliminar el trabajo.'
+                ? 'El trabajo fue enviado a la Papelera correctamente.'
+                : 'No fue posible eliminar el trabajo. No se realizó ningún cambio, inténtalo nuevamente.'
+        ];
+    }
+
+    /**
+     * Devuelve los trabajos que están actualmente en la Papelera,
+     * para pintar la vista papelera.php.
+     */
+    public function listarEliminados(): array
+    {
+        return $this->trabajoModel->listarEliminados();
+    }
+
+    /**
+     * Restaura un trabajo desde la Papelera: vuelve a aparecer
+     * en el listado principal junto con todo su expediente
+     * relacionado, que nunca se tocó durante el borrado lógico.
+     */
+    public function restaurar(int $idTrabajo): array
+    {
+        $restaurado = $this->trabajoModel->restaurar($idTrabajo);
+
+        return [
+            'exito' => $restaurado,
+            'mensaje' => $restaurado
+                ? 'El trabajo fue restaurado correctamente.'
+                : 'No fue posible restaurar el trabajo. Puede que ya no esté en la Papelera.'
         ];
     }
 }

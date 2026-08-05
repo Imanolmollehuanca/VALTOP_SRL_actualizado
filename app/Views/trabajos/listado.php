@@ -63,16 +63,29 @@ function formatearPrecio(float $monto): string
                 📂 Módulos
             </a>
         </div>
-        
-        <form action="/trabajos" method="GET" class="barra-busqueda">
-            <input
-                type="text"
-                name="buscar"
-                placeholder="Buscar trabajo..."
-                value="<?= htmlspecialchars($busquedaActual) ?>"
-            >
-            <button type="submit" class="btn btn-icono">🔍</button>
-        </form>
+
+        <div class="barra-acciones-derecha">
+            <form action="/trabajos" method="GET" class="barra-busqueda">
+                <input
+                    type="text"
+                    name="buscar"
+                    placeholder="Buscar trabajo..."
+                    value="<?= htmlspecialchars($busquedaActual) ?>"
+                >
+                <button type="submit" class="btn btn-icono">🔍</button>
+            </form>
+
+            <div class="menu-superior-contenedor" data-menu-contenedor>
+                <button type="button" class="btn btn-secundario btn-menu-superior" data-menu-trigger aria-haspopup="true" aria-expanded="false">
+                    ⋮
+                </button>
+                <div class="menu-desplegable menu-desplegable-superior menu-oculto" data-menu-panel>
+                    <a href="/trabajos/exportar" class="menu-item">📤 Exportar</a>
+                    <a href="/trabajos/imprimir?estado=<?= urlencode($estadoActual) ?>&responsable=<?= (int) $idResponsableActual ?>&buscar=<?= urlencode($busquedaActual) ?>" class="menu-item">🖨️ Imprimir</a>
+                    <a href="/trabajos/papelera" class="menu-item menu-item-peligro">🗑️ Papelera</a>
+                </div>
+            </div>
+        </div>
     </div>
 
     <div class="barra-filtros">
@@ -152,10 +165,25 @@ function formatearPrecio(float $monto): string
                         <td><?= htmlspecialchars($trabajo['fecha_inicio']) ?></td>
                         <td><?= htmlspecialchars($trabajo['fecha_fin']) ?></td>
                         <td class="acciones">
-                            <a href="/trabajos/expediente/<?= (int) $trabajo['id_trabajo'] ?>" title="Ver expediente">👁️</a>
-                            <a href="/trabajos/editar/<?= (int) $trabajo['id_trabajo'] ?>" title="Editar">✏️</a>
-                            <a href="/trabajos/imprimir/<?= (int) $trabajo['id_trabajo'] ?>" title="Imprimir">🖨️</a>
-                            
+                            <a href="/trabajos/expediente/<?= (int) $trabajo['id_trabajo'] ?>" title="Ver expediente" class="btn-accion-fila">👁️</a>
+
+                            <div class="menu-fila-contenedor" data-menu-contenedor>
+                                <button type="button" class="btn-accion-fila btn-menu-fila" data-menu-trigger aria-haspopup="true" aria-expanded="false" title="Más acciones">
+                                    ⋮
+                                </button>
+                                <div class="menu-desplegable menu-desplegable-fila menu-oculto" data-menu-panel>
+                                    <a href="/trabajos/editar/<?= (int) $trabajo['id_trabajo'] ?>" class="menu-item">✏️ Editar</a>
+                                    <a href="/trabajos/imprimir/<?= (int) $trabajo['id_trabajo'] ?>" class="menu-item">🖨️ Imprimir</a>
+                                    <form action="/trabajos/eliminar/<?= (int) $trabajo['id_trabajo'] ?>"
+                                        method="POST"
+                                        class="menu-form-eliminar"
+                                        onsubmit="return confirm('¿Desea eliminar el trabajo <?= htmlspecialchars($trabajo['codigo_trabajo']) ?>?');">
+                                        <button type="submit" class="menu-item menu-item-peligro">
+                                            🗑️ Eliminar
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
                         </td>
                     </tr>
                 <?php endforeach; ?>
@@ -243,7 +271,10 @@ function formatearPrecio(float $monto): string
         errorBox.textContent = '';
     }
 
-    document.getElementById('btnAbrirModalClienteListado').addEventListener('click', abrirModal);
+    const btnAbrirModalCliente = document.getElementById('btnAbrirModalClienteListado');
+    if (btnAbrirModalCliente) {
+        btnAbrirModalCliente.addEventListener('click', abrirModal);
+    }
     document.getElementById('btnCerrarModalCliente').addEventListener('click', cerrarModal);
     document.getElementById('btnCancelarModalCliente').addEventListener('click', cerrarModal);
 
@@ -284,6 +315,61 @@ function formatearPrecio(float $monto): string
             .catch(function () {
                 errorBox.textContent = 'Ocurrió un error al conectar con el servidor.';
             });
+    });
+})();
+
+/**
+ * Menús desplegables (⋮) — fila y superior.
+ * Delegación de eventos: funciona para todas las filas actuales
+ * y para cualquiera que se agregue dinámicamente en el futuro.
+ */
+(function () {
+    function cerrarTodosLosMenus(exceptoPanel) {
+        document.querySelectorAll('[data-menu-panel]').forEach(function (panel) {
+            if (panel !== exceptoPanel) {
+                panel.classList.add('menu-oculto');
+                const trigger = panel.previousElementSibling;
+                if (trigger && trigger.hasAttribute('data-menu-trigger')) {
+                    trigger.setAttribute('aria-expanded', 'false');
+                }
+            }
+        });
+    }
+
+    document.addEventListener('click', function (evento) {
+        const trigger = evento.target.closest('[data-menu-trigger]');
+
+        if (trigger) {
+            const contenedor = trigger.closest('[data-menu-contenedor]');
+            const panel = contenedor ? contenedor.querySelector('[data-menu-panel]') : null;
+
+            if (!panel) {
+                return;
+            }
+
+            const estaAbierto = !panel.classList.contains('menu-oculto');
+
+            cerrarTodosLosMenus(null);
+
+            if (!estaAbierto) {
+                panel.classList.remove('menu-oculto');
+                trigger.setAttribute('aria-expanded', 'true');
+            }
+
+            evento.stopPropagation();
+            return;
+        }
+
+        // Clic fuera de cualquier menú: cerrar todos.
+        if (!evento.target.closest('[data-menu-panel]')) {
+            cerrarTodosLosMenus(null);
+        }
+    });
+
+    document.addEventListener('keydown', function (evento) {
+        if (evento.key === 'Escape') {
+            cerrarTodosLosMenus(null);
+        }
     });
 })();
 </script>

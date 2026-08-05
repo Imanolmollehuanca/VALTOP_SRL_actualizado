@@ -2,10 +2,9 @@
 /**
  * Vista: Módulo Materiales — Tabla principal de trabajos
  * -----------------------------------------------------
- * array $resumen  Lista de TODOS los trabajos, cada uno ya trae
- *                  'nombre_responsable', 'costo_materiales',
- *                  'nombre_personal_principal' y 'total_personal'
- *                  gracias a MaterialTrabajo::listarResumenPorTrabajo().
+*array $resumen  Lista de todos los trabajos con su
+*                 responsable, estado y costo total
+*                de materiales.
  * -----------------------------------------------------
  */
 
@@ -26,23 +25,6 @@ function formatearMontoMaterial($monto): string
     return number_format((float) $monto, 2);
 }
 
-/**
- * Arma el texto de la columna "Personal": el nombre del primer
- * trabajador registrado en Tareo para ese trabajo, y "y N más"
- * si hay más de uno. Si nunca se registró personal, muestra "—".
- */
-function textoPersonalResumen(?string $nombrePrincipal, int $totalPersonal): string
-{
-    if (empty($nombrePrincipal)) {
-        return '—';
-    }
-
-    if ($totalPersonal <= 1) {
-        return $nombrePrincipal;
-    }
-
-    return $nombrePrincipal . ' y ' . ($totalPersonal - 1) . ' más';
-}
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -68,7 +50,6 @@ function textoPersonalResumen(?string $nombrePrincipal, int $totalPersonal): str
             <thead>
                 <tr>
                     <th>Código</th>
-                    <th>Personal</th>
                     <th>Proyecto</th>
                     <th>Responsable</th>
                     <th>Estado</th>
@@ -79,7 +60,7 @@ function textoPersonalResumen(?string $nombrePrincipal, int $totalPersonal): str
             <tbody>
                 <?php if (empty($resumen)): ?>
                     <tr>
-                        <td colspan="7" class="sin-datos">
+                        <td colspan="6" class="sin-datos">
                             No hay trabajos registrados todavía.
                         </td>
                     </tr>
@@ -87,7 +68,6 @@ function textoPersonalResumen(?string $nombrePrincipal, int $totalPersonal): str
                     <?php foreach ($resumen as $fila): ?>
                         <tr>
                             <td><?= htmlspecialchars($fila['codigo_trabajo']) ?></td>
-                            <td><?= htmlspecialchars(textoPersonalResumen($fila['nombre_personal_principal'], (int) $fila['total_personal'])) ?></td>
                             <td><?= htmlspecialchars($fila['proyecto']) ?></td>
                             <td><?= htmlspecialchars($fila['nombre_responsable'] ?? '—') ?></td>
                             <td>

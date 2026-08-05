@@ -226,6 +226,131 @@ if (
 }
 
 // -----------------------------------------------------
+// GET /trabajos/papelera  (listado de trabajos eliminados
+// lógicamente, con opción de restaurarlos)
+// -----------------------------------------------------
+if ($metodoHttp === 'GET' && $rutaSolicitada === '/trabajos/papelera') {
+    $trabajos = $trabajoController->listarEliminados();
+
+    renderizarVista(__DIR__ . '/app/Views/trabajos/papelera.php', [
+        'trabajos' => $trabajos,
+    ]);
+    exit;
+}
+
+// -----------------------------------------------------
+// POST /trabajos/restaurar/{id}  (restaura un trabajo desde
+// la Papelera y vuelve a aparecer en el listado principal)
+// -----------------------------------------------------
+if (
+    $metodoHttp === 'POST'
+    && preg_match('#^/trabajos/restaurar/(\d+)$#', $rutaSolicitada, $coincidencias)
+) {
+
+    $idTrabajo = (int) $coincidencias[1];
+
+    $resultado = $trabajoController->restaurar($idTrabajo);
+
+    header(
+        'Location: /trabajos/papelera?mensaje=' .
+        urlencode($resultado['mensaje']) .
+        '&tipo=' .
+        ($resultado['exito'] ? 'success' : 'error')
+    );
+
+    exit;
+}
+
+// -----------------------------------------------------
+// GET /trabajos/exportar-excel  (CSV compatible con Excel,
+// respeta los mismos filtros que el listado: estado,
+// responsable y búsqueda)
+// -----------------------------------------------------
+if ($metodoHttp === 'GET' && $rutaSolicitada === '/trabajos/exportar-excel') {
+    $estadoActual        = $_GET['estado'] ?? 'Todos';
+    $idResponsableActual = !empty($_GET['responsable']) ? (int) $_GET['responsable'] : null;
+    $busquedaActual      = $_GET['buscar'] ?? '';
+
+    $trabajos = $trabajoController->listar($estadoActual, $idResponsableActual, $busquedaActual);
+
+    header('Content-Type: text/csv; charset=UTF-8');
+    header('Content-Disposition: attachment; filename="trabajos_valtop.csv"');
+
+    $salida = fopen('php://output', 'w');
+    // BOM UTF-8: para que Excel reconozca acentos correctamente
+    fwrite($salida, "\xEF\xBB\xBF");
+
+    fputcsv($salida, [
+        'N° Trabajo', 'Cliente', 'Proyecto', 'Responsable',
+        'Precio Neto', 'Estado', 'Fecha Inicio', 'Fecha Fin',
+    ]);
+
+    foreach ($trabajos as $trabajo) {
+        fputcsv($salida, [
+            $trabajo['codigo_trabajo'],
+            $trabajo['nombre_cliente'] ?? '',
+            $trabajo['proyecto'],
+            $trabajo['nombre_responsable'] ?? '',
+            number_format((float) $trabajo['precio_neto'], 2, '.', ''),
+            $trabajo['estado'],
+            $trabajo['fecha_inicio'],
+            $trabajo['fecha_fin'],
+        ]);
+    }
+
+    fclose($salida);
+    exit;
+}
+
+// -----------------------------------------------------
+// GET /trabajos/imprimir
+// -----------------------------------------------------
+if ($metodoHttp === 'GET' && $rutaSolicitada === '/trabajos/imprimir') {
+
+    $idTrabajo = !empty($_GET['id']) ? (int) $_GET['id'] : null;
+
+    $estadoActual = $_GET['estado'] ?? 'Todos';
+
+    $idResponsableActual = !empty($_GET['responsable'])
+        ? (int) $_GET['responsable']
+        : null;
+
+    $busquedaActual = $_GET['buscar'] ?? '';
+
+    if ($idTrabajo !== null) {
+
+        $trabajo = $trabajoController->verDetalle($idTrabajo);
+
+        $trabajos = $trabajo ? [$trabajo] : [];
+
+    } else {
+
+        $trabajos = $trabajoController->listar(
+            $estadoActual,
+            $idResponsableActual,
+            $busquedaActual
+        );
+
+    }
+
+    $responsables = $usuarioModel->listar();
+
+    // Cambia esto si ya manejas sesiones
+    $nombreUsuario = 'Administrador';
+
+    renderizarVista(__DIR__ . '/app/Views/trabajos/imprimir.php', [
+        'trabajos'             => $trabajos,
+        'estadoActual'         => $estadoActual,
+        'idResponsableActual'  => $idResponsableActual,
+        'busquedaActual'       => $busquedaActual,
+        'responsables'         => $usuarioModel->listar(),
+        'nombreUsuario'        => 'Administrador',
+    ]);
+
+    exit;
+}
+
+// -----------------------------------------------------
 // GET /trabajos/expediente/{id}  (ver ficha completa)
 // -----------------------------------------------------
 if ($metodoHttp === 'GET' && preg_match('#^/trabajos/expediente/(\d+)$#', $rutaSolicitada, $coincidencias)) {

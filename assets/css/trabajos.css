@@ -1387,3 +1387,314 @@ a {
         grid-template-columns: 1fr;
     }
 }
+
+/* =====================================================
+   TRABAJOS - LISTADO: menús desplegables (⋮)
+   ===================================================== */
+
+/* Agrupa la búsqueda y el menú superior a la derecha de la
+   barra de acciones, sin tocar .barra-acciones-botones. */
+.barra-acciones-derecha {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+/* --- Botón "Ver expediente" y disparador "⋮" por fila,
+   con el mismo look circular que ya usaba .acciones a --- */
+.btn-accion-fila {
+    width: 30px;
+    height: 30px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background-color: var(--color-fondo);
+    font-size: 13px;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    font-family: inherit;
+    transition: background-color 0.15s ease, transform 0.1s ease;
+}
+
+.btn-accion-fila:hover {
+    background-color: var(--color-primario-suave);
+    transform: translateY(-1px);
+}
+
+.acciones a.btn-accion-fila[title="Ver expediente"] {
+    background-color: var(--color-primario-suave);
+    color: var(--color-primario);
+}
+
+/* --- Contenedor relativo para posicionar el panel del menú --- */
+.menu-fila-contenedor,
+.menu-superior-contenedor {
+    position: relative;
+    display: inline-flex;
+}
+
+.btn-menu-fila,
+.btn-menu-superior {
+    line-height: 1;
+    font-weight: 700;
+    letter-spacing: 1px;
+}
+
+.btn-menu-superior {
+    padding: 10px 14px;
+}
+
+/* --- Panel desplegable compartido por el menú de fila y el
+   menú superior --- */
+.menu-desplegable {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    min-width: 190px;
+    background: var(--color-superficie);
+    border: 1px solid var(--color-borde);
+    border-radius: var(--radio-md);
+    box-shadow: var(--sombra-media);
+    padding: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    z-index: 50;
+}
+
+.menu-oculto {
+    display: none;
+}
+
+.menu-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    border: none;
+    background: transparent;
+    text-align: left;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--color-texto);
+    padding: 9px 10px;
+    border-radius: var(--radio-sm);
+    cursor: pointer;
+    transition: background-color 0.12s ease;
+}
+
+.menu-item:hover {
+    background-color: var(--color-fondo);
+}
+
+.menu-item-peligro {
+    color: var(--color-fracaso-texto);
+}
+
+.menu-item-peligro:hover {
+    background-color: var(--color-fracaso-bg);
+}
+
+.menu-form-eliminar {
+    display: block;
+    margin: 0;
+}
+
+.menu-form-eliminar .menu-item {
+    font-family: inherit;
+}
+
+/* En pantallas angostas, la tabla ya se desplaza horizontalmente
+   (ver .tabla-trabajos en @media 860px); el menú de fila conserva
+   su ancho fijo para no romperse dentro de la celda. */
+@media (max-width: 860px) {
+    .menu-desplegable-fila {
+        right: auto;
+        left: 0;
+    }
+}
+
+/* =====================================================
+   TRABAJOS - VISTA DE IMPRESIÓN
+   ===================================================== */
+
+.cuerpo-impresion {
+    background-color: var(--color-fondo);
+}
+
+.impresion-acciones {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 20px 24px 0;
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+.pagina-impresion {
+    max-width: 900px;
+    margin: 20px auto 64px;
+    background: var(--color-superficie);
+    border-radius: var(--radio-lg);
+    box-shadow: var(--sombra-suave);
+    padding: 40px 48px;
+}
+
+.impresion-encabezado {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding-bottom: 20px;
+    border-bottom: 2px solid var(--color-borde);
+    margin-bottom: 24px;
+}
+
+.impresion-marca {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.impresion-logo {
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+}
+
+.impresion-logo svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+.impresion-empresa {
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+}
+
+.impresion-empresa-subtitulo {
+    font-size: 12px;
+    color: var(--color-texto-suave);
+}
+
+.impresion-meta {
+    text-align: right;
+    font-size: 12.5px;
+    color: var(--color-texto-suave);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.impresion-meta strong {
+    color: var(--color-texto);
+}
+
+.impresion-titulo-reporte {
+    text-align: center;
+    font-size: 19px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    margin: 0 0 8px;
+}
+
+.impresion-filtros {
+    display: flex;
+    justify-content: center;
+    gap: 24px;
+    flex-wrap: wrap;
+    font-size: 12.5px;
+    color: var(--color-texto-suave);
+    margin-bottom: 24px;
+}
+
+.impresion-filtros strong {
+    color: var(--color-texto);
+}
+
+.tabla-impresion {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 20px;
+}
+
+.tabla-impresion thead th {
+    text-align: left;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-texto-suave);
+    font-weight: 700;
+    padding: 10px 8px;
+    border-bottom: 2px solid var(--color-borde);
+}
+
+.tabla-impresion tbody td {
+    padding: 10px 8px;
+    border-bottom: 1px solid var(--color-borde);
+    font-size: 12.5px;
+    vertical-align: middle;
+}
+
+.impresion-resumen {
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1.5px solid var(--color-borde);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-width: 340px;
+}
+
+.impresion-resumen-fila {
+    display: flex;
+    justify-content: space-between;
+    font-size: 13px;
+}
+
+.impresion-resumen-fila strong {
+    font-variant-numeric: tabular-nums;
+}
+
+.impresion-leyenda {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    margin-top: 24px;
+}
+
+.impresion-pie {
+    margin-top: 32px;
+    text-align: center;
+    font-size: 11.5px;
+    color: var(--color-texto-tenue);
+}
+
+@media print {
+    body.cuerpo-impresion {
+        background-color: #fff;
+    }
+
+    .impresion-acciones {
+        display: none;
+    }
+
+    .pagina-impresion {
+        margin: 0 auto;
+        padding: 0;
+        box-shadow: none;
+        border-radius: 0;
+        max-width: 100%;
+    }
+
+    @page {
+        size: A4;
+        margin: 16mm;
+    }
+}

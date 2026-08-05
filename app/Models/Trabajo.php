@@ -61,6 +61,11 @@ class Trabajo
      * Devuelve los trabajos, con filtros opcionales.
      * Trae el nombre del cliente y del responsable mediante JOIN.
      *
+     * Nota: siempre excluye los trabajos eliminados lógicamente
+     * (eliminado_en IS NOT NULL), para que la Papelera no
+     * "contamine" el listado principal ni ningún otro consumidor
+     * de este método (exportar, imprimir, etc.).
+     *
      * @param string|null $estado        Filtra por estado exacto (ej: 'Pendiente')
      * @param int|null    $idResponsable Filtra por responsable exacto
      * @param string|null $busqueda      Busca coincidencia en proyecto o código
@@ -90,7 +95,7 @@ class Trabajo
                 FROM trabajos t
                 LEFT JOIN clientes c ON c.id_cliente = t.id_cliente
                 LEFT JOIN usuarios u ON u.id_usuario = t.id_responsable
-                WHERE 1=1";
+                WHERE t.eliminado_en IS NULL";
 
         $parametros = [];
 
@@ -114,6 +119,38 @@ class Trabajo
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute($parametros);
+
+        return $stmt->fetchAll();
+    }
+
+    /**
+     * Devuelve los trabajos que están en la Papelera
+     * (eliminado_en distinto de NULL), del más reciente
+     * al más antiguo.
+     */
+    public function listarEliminados(): array
+    {
+        $sql = "SELECT
+                    t.id_trabajo,
+                    t.codigo_trabajo,
+                    t.id_cliente,
+                    c.nombre_cliente,
+                    t.proyecto,
+                    t.ubicacion,
+                    t.id_responsable,
+                    u.nombre_usuario AS nombre_responsable,
+                    t.precio_neto,
+                    t.fecha_inicio,
+                    t.fecha_fin,
+                    t.estado,
+                    t.eliminado_en
+                FROM trabajos t
+                LEFT JOIN clientes c ON c.id_cliente = t.id_cliente
+                LEFT JOIN usuarios u ON u.id_usuario = t.id_responsable
+                WHERE t.eliminado_en IS NOT NULL
+                ORDER BY t.eliminado_en DESC";
+
+        $stmt = $this->db->query($sql);
 
         return $stmt->fetchAll();
     }
@@ -194,35 +231,120 @@ public function buscarPorId(int $idTrabajo): ?array
         return 'TR-' . str_pad((string) $siguiente, 3, '0', STR_PAD_LEFT);
     }
 
-    public function eliminar(int $idTrabajo): bool
+    /**
+     * Elimina un trabajo junto con TODO su expediente relacionado,
+     * en una única transacción.
+     *
+     * ⚠️ Este método YA NO se usa desde el botón 🗑️ del listado
+     * (ese ahora usa eliminarLogico(), más abajo, que no borra
+     * nada físicamente). Se deja intacto por si en el futuro se
+     * necesita un borrado físico definitivo desde algún otro flujo.
+     *
+     * Orden de borrado (respeta las claves foráneas existentes):
+     *   1. trabajo_materiales
+     *   2. viaticos
+     *   3. equipos
+     *   4. tareo
+     *   5. costo_financiero
+     *   6. trabajos
+     *
+     * (La tabla 'cobros' no existe en el esquema actual de la
+     * base de datos; si en el futuro se agrega, debe eliminarse
+     * aquí mismo, justo antes de borrar 'trabajos').
+     *
+     * Si cualquier DELETE falla, se hace ROLLBACK completo y no
+     * queda ningún registro eliminado (ni huérfanos ni parciales).
+     *
+     * @return bool true si el trabajo y su expediente se eliminaron
+     *              correctamente, false si ocurrió un error (no se
+     *              eliminó nada) o si el trabajo ya no existía.
+     */
+    public function eliminarConDependencias(int $idTrabajo): bool
     {
-        $stmt = $this->db->prepare("
-            DELETE FROM trabajos
-            WHERE id_trabajo = :id
-        ");
+        $iniciadaAqui = false;
 
-        $stmt->execute([
-            'id' => $idTrabajo
-        ]);
+        try {
+            if (!$this->db->inTransaction()) {
+                $this->db->beginTransaction();
+                $iniciadaAqui = true;
+            }
 
-        echo "Filas eliminadas: " . $stmt->rowCount();
-        exit;
+            $stmt = $this->db->prepare("DELETE FROM trabajo_materiales WHERE id_trabajo = :id");
+            $stmt->execute(['id' => $idTrabajo]);
+
+            $stmt = $this->db->prepare("DELETE FROM viaticos WHERE id_trabajo = :id");
+            $stmt->execute(['id' => $idTrabajo]);
+
+            $stmt = $this->db->prepare("DELETE FROM equipos WHERE id_trabajo = :id");
+            $stmt->execute(['id' => $idTrabajo]);
+
+            $stmt = $this->db->prepare("DELETE FROM tareo WHERE id_trabajo = :id");
+            $stmt->execute(['id' => $idTrabajo]);
+
+            $stmt = $this->db->prepare("DELETE FROM costo_financiero WHERE id_trabajo = :id");
+            $stmt->execute(['id' => $idTrabajo]);
+
+            $stmt = $this->db->prepare("DELETE FROM trabajos WHERE id_trabajo = :id");
+            $stmt->execute(['id' => $idTrabajo]);
+            $filasEliminadas = $stmt->rowCount();
+
+            if ($iniciadaAqui) {
+                $this->db->commit();
+            }
+
+            return $filasEliminadas > 0;
+
+        } catch (PDOException $e) {
+
+            if ($iniciadaAqui && $this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+
+            // Se registra el detalle técnico en el log del servidor;
+            // al Controller solo le devolvemos éxito/fracaso para que
+            // arme un mensaje amigable hacia el usuario.
+            error_log('Error al eliminar trabajo (id ' . $idTrabajo . '): ' . $e->getMessage());
+
+            return false;
+        }
     }
-    public function tieneEquipos(int $idTrabajo): bool
+
+    /**
+     * Borrado lógico: marca el trabajo como eliminado (Papelera)
+     * sin tocar ni una fila de ninguna otra tabla. No se pierde
+     * absolutamente nada.
+     */
+    public function eliminarLogico(int $idTrabajo): bool
     {
-        $stmt = $this->db->prepare("
-            SELECT COUNT(*)
-            FROM equipos
-            WHERE id_trabajo = :id
-        ");
+        $sql = "UPDATE trabajos
+                SET eliminado_en = NOW()
+                WHERE id_trabajo = :id_trabajo
+                  AND eliminado_en IS NULL";
 
-        $stmt->execute([
-            'id' => $idTrabajo
-        ]);
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute(['id_trabajo' => $idTrabajo]);
 
-        return $stmt->fetchColumn() > 0;
+        return $stmt->rowCount() > 0;
     }
-    
+
+    /**
+     * Restaura un trabajo desde la Papelera: quita la marca de
+     * eliminado y vuelve a aparecer en el listado principal junto
+     * con toda su información relacionada (que nunca se tocó).
+     */
+    public function restaurar(int $idTrabajo): bool
+    {
+        $sql = "UPDATE trabajos
+                SET eliminado_en = NULL
+                WHERE id_trabajo = :id_trabajo
+                  AND eliminado_en IS NOT NULL";
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute(['id_trabajo' => $idTrabajo]);
+
+        return $stmt->rowCount() > 0;
+    }
+
 public function buscarAutocompletado(string $termino): array
 {
     $sql = "SELECT
