@@ -44,7 +44,7 @@ class ReporteController
             $capitalInvertido += (float) $fila['capital_invertido'];
             $utilidadTotal    += (float) $fila['utilidad'];
 
-            if ($fila['estado'] === 'Cobrado') {
+            if ($fila['estado_cobro'] === 'Cobrado') {
                 $trabajosCobrados++;
             }
         }

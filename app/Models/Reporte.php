@@ -15,6 +15,13 @@ require_once __DIR__ . '/../../config/Database.php';
  * mismo criterio que CostoFinanciero.php (Equipos +
  * Viáticos + Materiales); Gastos Generales no se incluye
  * porque esa tabla es independiente de 'trabajos'.
+ *
+ * Estado de Cobro: como el sistema todavía no tiene un
+ * módulo de Cobros independiente, se deriva directamente
+ * del estado del trabajo (Pendiente/Terminado -> Pendiente,
+ * Cobrado -> Cobrado, Fracaso -> sin estado de cobro). El
+ * día que exista una tabla 'cobros', este método debe
+ * reemplazarse para leer de ahí en vez del estado.
  * -----------------------------------------------------
  */
 class Reporte
@@ -157,24 +164,27 @@ class Reporte
             - $fila['capital_invertido']
             - $fila['costo_financiero'];
 
-        $fila['estado_cobro'] = $this->calcularEstadoCobro(
-            $fila['fecha_factura'],
-            $fila['fecha_cobro']
-        );
+        $fila['estado_cobro'] = $this->calcularEstadoCobro($fila['estado']);
 
         return $fila;
     }
 
-    private function calcularEstadoCobro(?string $fechaFactura, ?string $fechaCobro): string
+    /**
+     * Estado de Cobro derivado del estado del trabajo:
+     *
+     *   Pendiente / Terminado -> Pendiente
+     *   Cobrado                -> Cobrado
+     *   Fracaso                -> null (sin estado de cobro, se pinta "—")
+     */
+    private function calcularEstadoCobro(string $estadoTrabajo): ?string
     {
-        if (!empty($fechaCobro)) {
-            return 'Cobrado';
-        }
+        $mapa = [
+            'Pendiente' => 'Pendiente',
+            'Terminado' => 'Pendiente',
+            'Cobrado'   => 'Cobrado',
+            'Fracaso'   => 'Nulo',
+        ];
 
-        if (!empty($fechaFactura)) {
-            return 'Pendiente';
-        }
-
-        return 'Debe';
+        return array_key_exists($estadoTrabajo, $mapa) ? $mapa[$estadoTrabajo] : null;
     }
 }

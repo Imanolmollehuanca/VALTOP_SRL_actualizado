@@ -19,7 +19,7 @@
  * exactamente con lo que espera TrabajoController::registrar()
  * y TrabajoController::actualizar():
  * id_cliente, proyecto, descripcion, ubicacion, id_responsable,
- * precio_neto, fecha_inicio, fecha_fin.
+ * precio_neto, fecha_inicio, fecha_fin, estado.
  * -----------------------------------------------------
  */
 
@@ -151,25 +151,22 @@ function valorCampo(?array $trabajo, string $campo): string
             >
         </div>
 
-        <?php if ($esEdicion): ?>
+        <?php $estadoActual = $trabajo['estado'] ?? 'Pendiente'; ?>
+        <div class="campo campo-estado-independiente">
+            <label for="estado">Estado</label>
 
-            <div class="campo campo-estado-independiente">
-                <label for="estado">Estado</label>
+            <select id="estado" name="estado">
+                <?php foreach (TrabajoController::ESTADOS_VALIDOS as $estado): ?>
+                    <option
+                        value="<?= htmlspecialchars($estado) ?>"
+                        <?= ($estadoActual === $estado) ? 'selected' : '' ?>
+                    >
+                        <?= htmlspecialchars($estado) ?>
+                    </option>
+                <?php endforeach; ?>
+            </select>
 
-                <select id="estado" name="estado">
-                    <?php foreach (TrabajoController::ESTADOS_VALIDOS as $estado): ?>
-                        <option
-                            value="<?= htmlspecialchars($estado) ?>"
-                            <?= ($trabajo['estado'] === $estado) ? 'selected' : '' ?>
-                        >
-                            <?= htmlspecialchars($estado) ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
-
-            </div>
-
-        <?php endif; ?>
+        </div>
 
         <div class="campo">
             <label for="fecha_inicio">Fecha Inicio</label>

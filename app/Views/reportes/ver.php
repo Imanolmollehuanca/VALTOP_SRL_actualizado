@@ -22,7 +22,6 @@ $mapaBadgeEstado = [
 $mapaBadgeEstadoCobro = [
     'Cobrado'   => 'badge-cobrado',
     'Pendiente' => 'badge-pendiente',
-    'Debe'      => 'badge-debe',
 ];
 ?>
 <!DOCTYPE html>
@@ -99,9 +98,13 @@ $mapaBadgeEstadoCobro = [
                 <tr>
                     <td>Estado de Cobro</td>
                     <td>
-                        <span class="badge <?= $mapaBadgeEstadoCobro[$fila['estado_cobro']] ?? 'badge-default' ?>">
-                            <?= $fila['estado_cobro'] ?>
-                        </span>
+                        <?php if ($fila['estado_cobro'] !== null): ?>
+                            <span class="badge <?= $mapaBadgeEstadoCobro[$fila['estado_cobro']] ?? 'badge-default' ?>">
+                                <?= $fila['estado_cobro'] ?>
+                            </span>
+                        <?php else: ?>
+                            —
+                        <?php endif; ?>
                     </td>
                 </tr>
                 <tr>

@@ -235,13 +235,35 @@ a {
     min-width: 160px;
 }
 
+/* CORREGIDO: se quitó "overflow: hidden" de aquí (recortaba el
+   menú desplegable ⋮). Las esquinas redondeadas ahora se logran
+   redondeando la celda superior/inferior de la tabla en vez de
+   recortar todo el contenedor (ver reglas más abajo). */
 .tabla-trabajos {
     width: 100%;
     border-collapse: collapse;
     background: var(--color-superficie);
     border-radius: var(--radio-lg);
-    overflow: hidden;
     box-shadow: var(--sombra-suave);
+}
+
+/* Redondeo de esquinas superiores/inferiores sin usar overflow:hidden
+   en el contenedor, para no cortar el menú desplegable que sobresale
+   de la tabla. */
+.tabla-trabajos thead tr:first-child th:first-child {
+    border-top-left-radius: var(--radio-lg);
+}
+
+.tabla-trabajos thead tr:first-child th:last-child {
+    border-top-right-radius: var(--radio-lg);
+}
+
+.tabla-trabajos tbody tr:last-child td:first-child {
+    border-bottom-left-radius: var(--radio-lg);
+}
+
+.tabla-trabajos tbody tr:last-child td:last-child {
+    border-bottom-right-radius: var(--radio-lg);
 }
 
 .tabla-trabajos thead th {
@@ -812,10 +834,31 @@ a {
         min-width: 0;
     }
 
+    /* CORREGIDO: ya no se usa overflow-x en el propio .tabla-trabajos,
+       porque overflow (en cualquier eje) crea el mismo contexto de
+       recorte que corta el menú desplegable. El scroll horizontal en
+       móvil ahora lo maneja el wrapper .tabla-trabajos-wrapper
+       (ver regla nueva abajo), que envuelve la tabla sin recortar
+       elementos que se posicionan fuera de ella. */
     .tabla-trabajos {
         display: block;
-        overflow-x: auto;
         white-space: nowrap;
+    }
+}
+
+/* Wrapper opcional para scroll horizontal de la tabla en pantallas
+   angostas. Si tu HTML ya envuelve <table class="tabla-trabajos"> en
+   un contenedor con esta clase, el scroll seguirá funcionando en
+   móvil sin recortar el menú desplegable en desktop. Si no existe
+   ese wrapper en tu HTML, esta regla simplemente no aplica y no
+   rompe nada. */
+.tabla-trabajos-wrapper {
+    width: 100%;
+}
+
+@media (max-width: 860px) {
+    .tabla-trabajos-wrapper {
+        overflow-x: auto;
     }
 }
 
@@ -852,7 +895,12 @@ a {
 
 /* La tabla de Equipos tiene más columnas que la de Trabajos;
    este wrapper permite desplazamiento horizontal en pantallas
-   angostas sin romper el diseño general. */
+   angostas sin romper el diseño general.
+   NOTA: si este wrapper envuelve una tabla que también tiene menús
+   desplegables (⋮), su overflow-x:auto la recortará igual que le
+   pasaba a .tabla-trabajos. Si Equipos usa el mismo menú ⋮, aplica
+   aquí el mismo criterio: quita overflow-x o usa el patrón de
+   overlay que describo al final de este archivo. */
 .tabla-wrapper {
     width: 100%;
     overflow-x: auto;
@@ -1448,7 +1496,10 @@ a {
 }
 
 /* --- Panel desplegable compartido por el menú de fila y el
-   menú superior --- */
+   menú superior ---
+   CORREGIDO: z-index elevado a un valor claramente por encima de
+   cualquier otro elemento apilado en la página (modales aparte,
+   que ya usan 1000 y solo se muestran cuando están abiertos). */
 .menu-desplegable {
     position: absolute;
     top: calc(100% + 6px);
@@ -1462,7 +1513,7 @@ a {
     display: flex;
     flex-direction: column;
     gap: 2px;
-    z-index: 50;
+    z-index: 500;
 }
 
 .menu-oculto {
@@ -1509,8 +1560,8 @@ a {
 }
 
 /* En pantallas angostas, la tabla ya se desplaza horizontalmente
-   (ver .tabla-trabajos en @media 860px); el menú de fila conserva
-   su ancho fijo para no romperse dentro de la celda. */
+   (ver .tabla-trabajos-wrapper en @media 860px); el menú de fila
+   conserva su ancho fijo para no romperse dentro de la celda. */
 @media (max-width: 860px) {
     .menu-desplegable-fila {
         right: auto;

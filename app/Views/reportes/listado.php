@@ -35,7 +35,6 @@ function claseBadgeEstadoCobro(string $estadoCobro): string
     $mapa = [
         'Cobrado'   => 'badge-cobrado',
         'Pendiente' => 'badge-pendiente',
-        'Debe'      => 'badge-debe',
     ];
 
     return $mapa[$estadoCobro] ?? 'badge-default';
@@ -155,9 +154,13 @@ $queryFiltros = http_build_query(array_filter($filtrosActuales));
                         <td class="columna-precio">S/ <?= monto($fila['costo_financiero']) ?></td>
                         <td class="columna-precio">S/ <?= monto($fila['utilidad']) ?></td>
                         <td>
-                            <span class="badge <?= claseBadgeEstadoCobro($fila['estado_cobro']) ?>">
-                                <?= $fila['estado_cobro'] ?>
-                            </span>
+                            <?php if ($fila['estado_cobro'] !== null): ?>
+                                <span class="badge <?= claseBadgeEstadoCobro($fila['estado_cobro']) ?>">
+                                    <?= $fila['estado_cobro'] ?>
+                                </span>
+                            <?php else: ?>
+                                —
+                            <?php endif; ?>
                         </td>
                         <td>
                             <span class="badge <?= claseBadgeEstado($fila['estado']) ?>">
