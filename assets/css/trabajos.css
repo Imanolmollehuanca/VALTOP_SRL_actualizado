@@ -1749,3 +1749,107 @@ a {
         margin: 16mm;
     }
 }
+
+/* =====================================================
+   MENÚ DESPLEGABLE — REDISEÑO MODERNO
+   (Notion / Linear / GitHub / Vercel style)
+   Se aplica solo donde se agregue la clase
+   .menu-desplegable-moderno junto a .menu-desplegable,
+   así el diseño general del sistema no se ve afectado.
+   ===================================================== */
+
+.menu-desplegable-moderno {
+    /* Esquinas más redondeadas y sombra en capas, más suave
+       y con más profundidad que .sombra-media */
+    border-radius: 12px;
+    border: 1px solid rgba(15, 23, 42, 0.06);
+    box-shadow:
+        0 0 0 1px rgba(15, 23, 42, 0.02),
+        0 4px 8px rgba(15, 23, 42, 0.06),
+        0 12px 28px rgba(15, 23, 42, 0.12);
+    padding: 6px;
+    min-width: 200px;
+    gap: 2px;
+
+    /* Pequeña animación de entrada: aparece con fade + slide,
+       como en Linear/Vercel. Se dispara cada vez que el panel
+       deja de tener la clase .menu-oculto (display: none -> flex),
+       por lo que la animación corre en cada apertura. */
+    animation: menuDesplegableEntrada 0.14s ease-out;
+    transform-origin: top right;
+}
+
+@media (max-width: 860px) {
+    .menu-desplegable-moderno.menu-desplegable-fila {
+        transform-origin: top left;
+    }
+}
+
+@keyframes menuDesplegableEntrada {
+    from {
+        opacity: 0;
+        transform: translateY(-4px) scale(0.98);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* --- Ítems del menú: más "aire", ícono en su propio carril
+   de ancho fijo para que todos los textos queden alineados
+   verticalmente, y transición suave en el hover --- */
+.menu-desplegable-moderno .menu-item {
+    align-items: center;
+    gap: 10px;
+    padding: 9px 10px;
+    border-radius: 8px;
+    font-size: 13.5px;
+    font-weight: 500;
+    color: var(--color-texto);
+    transition: background-color 0.12s ease, color 0.12s ease, transform 0.08s ease;
+}
+
+.menu-desplegable-moderno .menu-item-icono {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    flex-shrink: 0;
+    font-size: 14px;
+    line-height: 1;
+}
+
+.menu-desplegable-moderno .menu-item-texto {
+    flex: 1;
+    line-height: 1.2;
+}
+
+.menu-desplegable-moderno .menu-item:hover {
+    background-color: var(--color-fondo);
+    transform: translateX(1px);
+}
+
+.menu-desplegable-moderno .menu-item-peligro {
+    color: var(--color-fracaso-texto);
+}
+
+.menu-desplegable-moderno .menu-item-peligro:hover {
+    background-color: var(--color-fracaso-bg);
+}
+
+/* Separador opcional: si en el futuro agregas
+   <div class="menu-separador"></div> entre grupos de acciones
+   (ej. separar "Exportar" de "Papelera"), esta clase ya
+   queda lista con el mismo espaciado que usa Notion/Linear. */
+.menu-desplegable-moderno .menu-separador {
+    height: 1px;
+    background-color: var(--color-borde);
+    margin: 4px 2px;
+}
+
+/* El formulario de "Eliminar" dentro del menú de fila no debe
+   romper el nuevo espaciado en gap del contenedor flex. */
+.menu-desplegable-moderno .menu-form-eliminar {
+    margin: 0;
+}

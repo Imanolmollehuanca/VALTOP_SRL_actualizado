@@ -1,0 +1,12 @@
+{
+    "name": "lenovo/valtopsrl",
+    "authors": [
+        {
+            "name": "Imanol",
+            "email": "mollehuancaimanol2@gmail.com"
+        }
+    ],
+    "require": {
+        "phpoffice/phpspreadsheet": "^2.1"
+    }
+}

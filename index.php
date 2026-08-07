@@ -11,6 +11,8 @@
  * Solo enruta.
  * -----------------------------------------------------
  */
+require_once __DIR__ . '/vendor/autoload.php';
+
 require_once __DIR__ . '/app/Controllers/TrabajoController.php';
 require_once __DIR__ . '/app/Controllers/ClienteController.php';
 require_once __DIR__ . '/app/Controllers/EquipoController.php';
@@ -22,6 +24,16 @@ require_once __DIR__ . '/app/Controllers/MaterialController.php';
 require_once __DIR__ . '/app/Controllers/GastoGeneralController.php';
 require_once __DIR__ . '/app/Controllers/CostoFinancieroController.php';
 require_once __DIR__ . '/app/Controllers/ReporteController.php';
+
+// PhpSpreadsheet: usado en /reportes/exportar-excel y en
+// /trabajos/exportar (y su alias /trabajos/exportar-excel)
+// para generar el Excel profesional (ver más abajo).
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Style\Border;
+use PhpOffice\PhpSpreadsheet\Worksheet\PageSetup;
 
 // Quitamos query string y la barra final para comparar rutas limpias.
 $rutaSolicitada = strtok($_SERVER['REQUEST_URI'], '?');
@@ -48,6 +60,233 @@ function renderizarVista(string $rutaVista, array $datos = []): void
 {
     extract($datos);
     require $rutaVista;
+}
+
+/**
+ * Genera y descarga el Excel profesional del módulo Trabajos.
+ * Usado por /trabajos/exportar y /trabajos/exportar-excel (alias),
+ * para que ambas rutas produzcan exactamente el mismo archivo .xlsx.
+ *
+ * @param array       $trabajos             Trabajos ya filtrados a exportar
+ * @param string      $estadoActual         Estado del filtro activo
+ * @param int|null    $idResponsableActual  ID del responsable filtrado, o null
+ * @param array       $responsables         Lista de responsables (para resolver el nombre del filtro)
+ */
+function generarExcelTrabajos(
+    array $trabajos,
+    string $estadoActual,
+    ?int $idResponsableActual,
+    array $responsables
+): void {
+    // Nombre del responsable filtrado (si hay filtro activo).
+    $nombreResponsableFiltro = 'Todos';
+    if ($idResponsableActual !== null) {
+        foreach ($responsables as $responsable) {
+            if ((int) $responsable['id_usuario'] === $idResponsableActual) {
+                $nombreResponsableFiltro = $responsable['nombre_usuario'];
+                break;
+            }
+        }
+    }
+
+    // Totales para el resumen general.
+    $totalTrabajos      = count($trabajos);
+    $totalFacturado     = 0.0;
+    $trabajosPendientes = 0;
+    $trabajosTerminados = 0;
+    $trabajosCobrados   = 0;
+    $trabajosFracasados = 0;
+
+    foreach ($trabajos as $trabajo) {
+        $totalFacturado += (float) $trabajo['precio_neto'];
+
+        switch ($trabajo['estado']) {
+            case 'Pendiente':
+                $trabajosPendientes++;
+                break;
+            case 'Terminado':
+                $trabajosTerminados++;
+                break;
+            case 'Cobrado':
+                $trabajosCobrados++;
+                break;
+            case 'Fracaso':
+                $trabajosFracasados++;
+                break;
+        }
+    }
+
+    // ---------- Construcción del Excel ----------
+    $spreadsheet = new Spreadsheet();
+    $hoja = $spreadsheet->getActiveSheet();
+    $hoja->setTitle('Trabajos');
+
+    $colorAzulValtop = '1F3864';
+    $colorEncabezado = '2F5496';
+    $columnas = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+
+    // Encabezado de empresa
+    $hoja->mergeCells('A1:H1');
+    $hoja->setCellValue('A1', 'VALTOP SRL');
+    $hoja->getStyle('A1')->getFont()->setBold(true)->setSize(18)->getColor()->setRGB($colorAzulValtop);
+    $hoja->getStyle('A1')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+
+    $hoja->mergeCells('A2:H2');
+    $hoja->setCellValue('A2', 'Sistema de Gestión de Trabajos');
+    $hoja->getStyle('A2')->getFont()->setItalic(true)->setSize(11)->getColor()->setRGB('595959');
+    $hoja->getStyle('A2')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+
+    $hoja->mergeCells('A4:H4');
+    $hoja->setCellValue('A4', 'REPORTE DE TRABAJOS');
+    $hoja->getStyle('A4')->getFont()->setBold(true)->setSize(14);
+    $hoja->getStyle('A4')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+
+    // Datos de cabecera (Fecha de generación, Usuario, Responsable, Estado)
+    $datosCabecera = [
+        6 => ['Fecha de generación:', date('d/m/Y H:i')],
+        7 => ['Usuario:', 'Administrador'],
+        8 => ['Responsable:', $nombreResponsableFiltro],
+        9 => ['Estado:', $estadoActual],
+    ];
+
+    foreach ($datosCabecera as $numeroFila => [$etiqueta, $valor]) {
+        $hoja->setCellValue('A' . $numeroFila, $etiqueta);
+        $hoja->getStyle('A' . $numeroFila)->getFont()->setBold(true);
+        $hoja->setCellValue('C' . $numeroFila, $valor);
+    }
+
+    // Encabezado de la tabla
+    $filaEncabezado = 11;
+    $encabezadosTabla = [
+        'N° Trabajo', 'Cliente', 'Proyecto', 'Responsable',
+        'Precio Neto (S/)', 'Estado', 'Fecha Inicio', 'Fecha Fin',
+    ];
+
+    foreach ($columnas as $indice => $columna) {
+        $hoja->setCellValue($columna . $filaEncabezado, $encabezadosTabla[$indice]);
+    }
+
+    $rangoEncabezado = 'A' . $filaEncabezado . ':H' . $filaEncabezado;
+    $hoja->getStyle($rangoEncabezado)->getFont()->setBold(true)->getColor()->setRGB('FFFFFF');
+    $hoja->getStyle($rangoEncabezado)->getFill()
+        ->setFillType(Fill::FILL_SOLID)
+        ->getStartColor()->setRGB($colorEncabezado);
+    $hoja->getStyle($rangoEncabezado)->getAlignment()
+        ->setHorizontal(Alignment::HORIZONTAL_CENTER)
+        ->setVertical(Alignment::VERTICAL_CENTER);
+
+    // Filas de datos
+    $filaActual = $filaEncabezado + 1;
+
+    foreach ($trabajos as $trabajo) {
+        $hoja->setCellValue('A' . $filaActual, $trabajo['codigo_trabajo']);
+        $hoja->setCellValue('B' . $filaActual, $trabajo['nombre_cliente'] ?? '—');
+        $hoja->setCellValue('C' . $filaActual, $trabajo['proyecto']);
+        $hoja->setCellValue('D' . $filaActual, $trabajo['nombre_responsable'] ?? '—');
+        $hoja->setCellValue('E' . $filaActual, (float) $trabajo['precio_neto']);
+        $hoja->setCellValue('F' . $filaActual, $trabajo['estado']);
+        $hoja->setCellValue('G' . $filaActual, $trabajo['fecha_inicio']);
+        $hoja->setCellValue('H' . $filaActual, $trabajo['fecha_fin']);
+
+        $filaActual++;
+    }
+
+    $ultimaFilaDatos = $filaActual - 1;
+
+    // Formato moneda en la columna de precio
+    if ($ultimaFilaDatos >= $filaEncabezado + 1) {
+        $hoja->getStyle('E' . ($filaEncabezado + 1) . ':E' . $ultimaFilaDatos)
+            ->getNumberFormat()->setFormatCode('"S/" #,##0.00');
+
+        $hoja->getStyle('A' . ($filaEncabezado + 1) . ':D' . $ultimaFilaDatos)
+            ->getAlignment()->setVertical(Alignment::VERTICAL_CENTER);
+        $hoja->getStyle('E' . ($filaEncabezado + 1) . ':H' . $ultimaFilaDatos)
+            ->getAlignment()
+            ->setHorizontal(Alignment::HORIZONTAL_CENTER)
+            ->setVertical(Alignment::VERTICAL_CENTER);
+    }
+
+    // Bordes de toda la tabla (encabezado + datos)
+    $rangoTablaCompleta = 'A' . $filaEncabezado . ':H' . max($ultimaFilaDatos, $filaEncabezado);
+    $hoja->getStyle($rangoTablaCompleta)->getBorders()->getAllBorders()
+        ->setBorderStyle(Border::BORDER_THIN);
+
+    // ---------- Resumen General ----------
+    $filaResumenTitulo = $ultimaFilaDatos + 2;
+    $hoja->mergeCells('A' . $filaResumenTitulo . ':B' . $filaResumenTitulo);
+    $hoja->setCellValue('A' . $filaResumenTitulo, 'RESUMEN GENERAL');
+    $hoja->getStyle('A' . $filaResumenTitulo)->getFont()->setBold(true)->getColor()->setRGB('FFFFFF');
+    $hoja->getStyle('A' . $filaResumenTitulo)->getFill()
+        ->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB($colorEncabezado);
+
+    $datosResumen = [
+        'Total Trabajos'      => $totalTrabajos,
+        'Total Facturado'     => 'S/ ' . number_format($totalFacturado, 2),
+        'Trabajos Pendientes' => $trabajosPendientes,
+        'Trabajos Terminados' => $trabajosTerminados,
+        'Trabajos Cobrados'   => $trabajosCobrados,
+        'Trabajos Fracasados' => $trabajosFracasados,
+    ];
+
+    $filaResumen = $filaResumenTitulo + 1;
+    foreach ($datosResumen as $etiqueta => $valor) {
+        $hoja->setCellValue('A' . $filaResumen, $etiqueta);
+        $hoja->getStyle('A' . $filaResumen)->getFont()->setBold(true);
+        $hoja->setCellValue('B' . $filaResumen, $valor);
+        $filaResumen++;
+    }
+
+    $rangoResumen = 'A' . $filaResumenTitulo . ':B' . ($filaResumen - 1);
+    $hoja->getStyle($rangoResumen)->getBorders()->getAllBorders()
+        ->setBorderStyle(Border::BORDER_THIN);
+
+    // ---------- Leyenda ----------
+    $filaLeyendaTitulo = $filaResumenTitulo;
+    $hoja->mergeCells('D' . $filaLeyendaTitulo . ':E' . $filaLeyendaTitulo);
+    $hoja->setCellValue('D' . $filaLeyendaTitulo, 'LEYENDA');
+    $hoja->getStyle('D' . $filaLeyendaTitulo)->getFont()->setBold(true)->getColor()->setRGB('FFFFFF');
+    $hoja->getStyle('D' . $filaLeyendaTitulo)->getFill()
+        ->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB($colorEncabezado);
+
+    $leyendaEstados = [
+        'Pendiente' => 'FFC000',
+        'Terminado' => '00B050',
+        'Cobrado'   => '2E75B6',
+        'Fracaso'   => 'C00000',
+    ];
+
+    $filaLeyenda = $filaLeyendaTitulo + 1;
+    foreach ($leyendaEstados as $nombreEstado => $colorHex) {
+        $hoja->getStyle('D' . $filaLeyenda)->getFill()
+            ->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB($colorHex);
+        $hoja->setCellValue('E' . $filaLeyenda, $nombreEstado);
+        $filaLeyenda++;
+    }
+
+    $rangoLeyenda = 'D' . $filaLeyendaTitulo . ':E' . ($filaLeyenda - 1);
+    $hoja->getStyle($rangoLeyenda)->getBorders()->getAllBorders()
+        ->setBorderStyle(Border::BORDER_THIN);
+
+    // ---------- Ajustes finales ----------
+    foreach ($columnas as $columna) {
+        $hoja->getColumnDimension($columna)->setAutoSize(true);
+    }
+
+    // Preparado para imprimir: horizontal, ajustado a 1 página de ancho
+    $hoja->getPageSetup()
+        ->setOrientation(PageSetup::ORIENTATION_LANDSCAPE)
+        ->setFitToPage(true)
+        ->setFitToWidth(1)
+        ->setFitToHeight(0);
+
+    // ---------- Descarga del archivo ----------
+    header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    header('Content-Disposition: attachment; filename="Trabajos_' . date('Y-m-d') . '.xlsx"');
+    header('Cache-Control: max-age=0');
+
+    $writer = new Xlsx($spreadsheet);
+    $writer->save('php://output');
+    exit;
 }
 
 // -----------------------------------------------------
@@ -262,43 +501,23 @@ if (
 }
 
 // -----------------------------------------------------
-// GET /trabajos/exportar-excel  (CSV compatible con Excel,
-// respeta los mismos filtros que el listado: estado,
-// responsable y búsqueda)
+// GET /trabajos/exportar  (Excel profesional con PhpSpreadsheet)
+// GET /trabajos/exportar-excel  (alias, mismo comportamiento)
+// Respeta los mismos filtros que el listado: estado,
+// responsable y búsqueda.
 // -----------------------------------------------------
-if ($metodoHttp === 'GET' && $rutaSolicitada === '/trabajos/exportar-excel') {
+if (
+    $metodoHttp === 'GET'
+    && ($rutaSolicitada === '/trabajos/exportar' || $rutaSolicitada === '/trabajos/exportar-excel')
+) {
     $estadoActual        = $_GET['estado'] ?? 'Todos';
     $idResponsableActual = !empty($_GET['responsable']) ? (int) $_GET['responsable'] : null;
     $busquedaActual      = $_GET['buscar'] ?? '';
 
-    $trabajos = $trabajoController->listar($estadoActual, $idResponsableActual, $busquedaActual);
+    $trabajos     = $trabajoController->listar($estadoActual, $idResponsableActual, $busquedaActual);
+    $responsables = $usuarioModel->listar();
 
-    header('Content-Type: text/csv; charset=UTF-8');
-    header('Content-Disposition: attachment; filename="trabajos_valtop.csv"');
-
-    $salida = fopen('php://output', 'w');
-    // BOM UTF-8: para que Excel reconozca acentos correctamente
-    fwrite($salida, "\xEF\xBB\xBF");
-
-    fputcsv($salida, [
-        'N° Trabajo', 'Cliente', 'Proyecto', 'Responsable',
-        'Precio Neto', 'Estado', 'Fecha Inicio', 'Fecha Fin',
-    ]);
-
-    foreach ($trabajos as $trabajo) {
-        fputcsv($salida, [
-            $trabajo['codigo_trabajo'],
-            $trabajo['nombre_cliente'] ?? '',
-            $trabajo['proyecto'],
-            $trabajo['nombre_responsable'] ?? '',
-            number_format((float) $trabajo['precio_neto'], 2, '.', ''),
-            $trabajo['estado'],
-            $trabajo['fecha_inicio'],
-            $trabajo['fecha_fin'],
-        ]);
-    }
-
-    fclose($salida);
+    generarExcelTrabajos($trabajos, $estadoActual, $idResponsableActual, $responsables);
     exit;
 }
 
@@ -1256,7 +1475,9 @@ if ($metodoHttp === 'GET' && preg_match('#^/reportes/ver/(\d+)$#', $rutaSolicita
 }
 
 // -----------------------------------------------------
-// GET /reportes/exportar-excel  (CSV compatible con Excel)
+// GET /reportes/exportar-excel  (Excel profesional generado
+// con PhpSpreadsheet, respeta los mismos filtros que el
+// listado: fecha_desde, fecha_hasta, id_responsable y estado)
 // -----------------------------------------------------
 if ($metodoHttp === 'GET' && $rutaSolicitada === '/reportes/exportar-excel') {
     $filtrosActuales = [
@@ -1266,36 +1487,233 @@ if ($metodoHttp === 'GET' && $rutaSolicitada === '/reportes/exportar-excel') {
         'estado'         => $_GET['estado'] ?? '',
     ];
 
-    $filas = $reporteController->listar($filtrosActuales);
+    $filas   = $reporteController->listar($filtrosActuales);
+    $resumen = $reporteController->resumen($filas);
 
-    header('Content-Type: text/csv; charset=UTF-8');
-    header('Content-Disposition: attachment; filename="reporte_valtop.csv"');
-
-    $salida = fopen('php://output', 'w');
-    // BOM UTF-8: para que Excel reconozca acentos correctamente
-    fwrite($salida, "\xEF\xBB\xBF");
-
-    fputcsv($salida, [
-        'Código', 'Cliente', 'Proyecto', 'Responsable', 'Precio Neto',
-        'Capital Invertido', 'Costo Financiero', 'Utilidad', 'Estado', 'Estado de Cobro',
-    ]);
+    // resumen() no expone el desglose por estado ni el costo
+    // financiero total, así que se calculan aquí mismo a partir
+    // de $filas (mismo dato que ya usa el resto del reporte).
+    // No se toca ReporteController ni Reporte: es información
+    // exclusiva de esta exportación.
+    $trabajosPendientes   = 0;
+    $trabajosTerminados   = 0;
+    $trabajosFracasados   = 0;
+    $costoFinancieroTotal = 0.0;
 
     foreach ($filas as $fila) {
-        fputcsv($salida, [
-            $fila['codigo_trabajo'],
-            $fila['nombre_cliente'] ?? '',
-            $fila['proyecto'],
-            $fila['nombre_responsable'] ?? '',
-            number_format((float) $fila['precio_neto'], 2, '.', ''),
-            number_format((float) $fila['capital_invertido'], 2, '.', ''),
-            number_format((float) $fila['costo_financiero'], 2, '.', ''),
-            number_format((float) $fila['utilidad'], 2, '.', ''),
-            $fila['estado'],
-            $fila['estado_cobro'],
-        ]);
+        $costoFinancieroTotal += (float) $fila['costo_financiero'];
+
+        switch ($fila['estado']) {
+            case 'Pendiente':
+                $trabajosPendientes++;
+                break;
+            case 'Terminado':
+                $trabajosTerminados++;
+                break;
+            case 'Fracaso':
+                $trabajosFracasados++;
+                break;
+        }
     }
 
-    fclose($salida);
+    // Nombre del responsable filtrado (si hay filtro activo).
+    $nombreResponsableFiltro = 'Todos';
+    if (!empty($filtrosActuales['id_responsable'])) {
+        foreach ($usuarioModel->listar() as $responsable) {
+            if ((string) $responsable['id_usuario'] === (string) $filtrosActuales['id_responsable']) {
+                $nombreResponsableFiltro = $responsable['nombre_usuario'];
+                break;
+            }
+        }
+    }
+
+    $estadoFiltro = $filtrosActuales['estado'] !== '' ? $filtrosActuales['estado'] : 'Todos';
+
+    if ($filtrosActuales['fecha_desde'] === '' && $filtrosActuales['fecha_hasta'] === '') {
+        $periodoTexto = 'Todos los registros';
+    } else {
+        $periodoTexto = ($filtrosActuales['fecha_desde'] !== '' ? $filtrosActuales['fecha_desde'] : 'Inicio')
+            . ' - ' .
+            ($filtrosActuales['fecha_hasta'] !== '' ? $filtrosActuales['fecha_hasta'] : 'Actualidad');
+    }
+
+    // ---------- Construcción del Excel ----------
+    $spreadsheet = new Spreadsheet();
+    $hoja = $spreadsheet->getActiveSheet();
+    $hoja->setTitle('Reporte_Trabajos');
+
+    $colorAzulValtop = '1F3864';
+    $colorEncabezado = '2F5496';
+    $columnas = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'];
+
+    // Encabezado de empresa
+    $hoja->mergeCells('A1:J1');
+    $hoja->setCellValue('A1', 'VALTOP SRL');
+    $hoja->getStyle('A1')->getFont()->setBold(true)->setSize(18)->getColor()->setRGB($colorAzulValtop);
+    $hoja->getStyle('A1')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+
+    $hoja->mergeCells('A2:J2');
+    $hoja->setCellValue('A2', 'Sistema de Gestión de Trabajos');
+    $hoja->getStyle('A2')->getFont()->setItalic(true)->setSize(11)->getColor()->setRGB('595959');
+    $hoja->getStyle('A2')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+
+    $hoja->mergeCells('A4:J4');
+    $hoja->setCellValue('A4', 'REPORTE DE TRABAJOS');
+    $hoja->getStyle('A4')->getFont()->setBold(true)->setSize(14);
+    $hoja->getStyle('A4')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+
+    // Datos del reporte (Fecha de generación, Usuario, Período, Responsable, Estado)
+    $datosCabecera = [
+        6  => ['Fecha de generación:', date('d/m/Y H:i')],
+        7  => ['Usuario:', 'Administrador'],
+        8  => ['Período:', $periodoTexto],
+        9  => ['Responsable:', $nombreResponsableFiltro],
+        10 => ['Estado:', $estadoFiltro],
+    ];
+
+    foreach ($datosCabecera as $numeroFila => [$etiqueta, $valor]) {
+        $hoja->setCellValue('A' . $numeroFila, $etiqueta);
+        $hoja->getStyle('A' . $numeroFila)->getFont()->setBold(true);
+        $hoja->setCellValue('C' . $numeroFila, $valor);
+    }
+
+    // Encabezado de la tabla
+    $filaEncabezado = 12;
+    $encabezadosTabla = [
+        'N° Trabajo', 'Cliente', 'Proyecto', 'Responsable',
+        'Precio Neto (S/)', 'Capital Invertido (S/)', 'Costo Financiero (S/)',
+        'Utilidad (S/)', 'Estado de Cobro', 'Estado',
+    ];
+
+    foreach ($columnas as $indice => $columna) {
+        $hoja->setCellValue($columna . $filaEncabezado, $encabezadosTabla[$indice]);
+    }
+
+    $rangoEncabezado = 'A' . $filaEncabezado . ':J' . $filaEncabezado;
+    $hoja->getStyle($rangoEncabezado)->getFont()->setBold(true)->getColor()->setRGB('FFFFFF');
+    $hoja->getStyle($rangoEncabezado)->getFill()
+        ->setFillType(Fill::FILL_SOLID)
+        ->getStartColor()->setRGB($colorEncabezado);
+    $hoja->getStyle($rangoEncabezado)->getAlignment()
+        ->setHorizontal(Alignment::HORIZONTAL_CENTER)
+        ->setVertical(Alignment::VERTICAL_CENTER);
+
+    // Filas de datos
+    $filaActual = $filaEncabezado + 1;
+
+    foreach ($filas as $fila) {
+        $hoja->setCellValue('A' . $filaActual, $fila['codigo_trabajo']);
+        $hoja->setCellValue('B' . $filaActual, $fila['nombre_cliente'] ?? '—');
+        $hoja->setCellValue('C' . $filaActual, $fila['proyecto']);
+        $hoja->setCellValue('D' . $filaActual, $fila['nombre_responsable'] ?? '—');
+        $hoja->setCellValue('E' . $filaActual, (float) $fila['precio_neto']);
+        $hoja->setCellValue('F' . $filaActual, (float) $fila['capital_invertido']);
+        $hoja->setCellValue('G' . $filaActual, (float) $fila['costo_financiero']);
+        $hoja->setCellValue('H' . $filaActual, (float) $fila['utilidad']);
+        $hoja->setCellValue('I' . $filaActual, $fila['estado_cobro'] ?? '—');
+        $hoja->setCellValue('J' . $filaActual, $fila['estado']);
+
+        $filaActual++;
+    }
+
+    $ultimaFilaDatos = $filaActual - 1;
+
+    // Formato moneda en las columnas de montos
+    if ($ultimaFilaDatos >= $filaEncabezado + 1) {
+        $hoja->getStyle('E' . ($filaEncabezado + 1) . ':H' . $ultimaFilaDatos)
+            ->getNumberFormat()->setFormatCode('"S/" #,##0.00');
+
+        $hoja->getStyle('A' . ($filaEncabezado + 1) . ':D' . $ultimaFilaDatos)
+            ->getAlignment()->setVertical(Alignment::VERTICAL_CENTER);
+        $hoja->getStyle('E' . ($filaEncabezado + 1) . ':J' . $ultimaFilaDatos)
+            ->getAlignment()
+            ->setHorizontal(Alignment::HORIZONTAL_CENTER)
+            ->setVertical(Alignment::VERTICAL_CENTER);
+    }
+
+    // Bordes de toda la tabla (encabezado + datos)
+    $rangoTablaCompleta = 'A' . $filaEncabezado . ':J' . max($ultimaFilaDatos, $filaEncabezado);
+    $hoja->getStyle($rangoTablaCompleta)->getBorders()->getAllBorders()
+        ->setBorderStyle(Border::BORDER_THIN);
+
+    // ---------- Resumen General ----------
+    $filaResumenTitulo = $ultimaFilaDatos + 2;
+    $hoja->mergeCells('A' . $filaResumenTitulo . ':B' . $filaResumenTitulo);
+    $hoja->setCellValue('A' . $filaResumenTitulo, 'RESUMEN GENERAL');
+    $hoja->getStyle('A' . $filaResumenTitulo)->getFont()->setBold(true)->getColor()->setRGB('FFFFFF');
+    $hoja->getStyle('A' . $filaResumenTitulo)->getFill()
+        ->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB($colorEncabezado);
+
+    $datosResumen = [
+        'Total de Trabajos'   => $resumen['total_trabajos'],
+        'Total Facturado'     => 'S/ ' . number_format($resumen['total_facturado'], 2),
+        'Capital Invertido'   => 'S/ ' . number_format($resumen['capital_invertido'], 2),
+        'Costo Financiero'    => 'S/ ' . number_format($costoFinancieroTotal, 2),
+        'Utilidad Total'      => 'S/ ' . number_format($resumen['utilidad_total'], 2),
+        'Trabajos Pendientes' => $trabajosPendientes,
+        'Trabajos Terminados' => $trabajosTerminados,
+        'Trabajos Cobrados'   => $resumen['trabajos_cobrados'],
+        'Trabajos Fracasados' => $trabajosFracasados,
+    ];
+
+    $filaResumen = $filaResumenTitulo + 1;
+    foreach ($datosResumen as $etiqueta => $valor) {
+        $hoja->setCellValue('A' . $filaResumen, $etiqueta);
+        $hoja->getStyle('A' . $filaResumen)->getFont()->setBold(true);
+        $hoja->setCellValue('B' . $filaResumen, $valor);
+        $filaResumen++;
+    }
+
+    $rangoResumen = 'A' . $filaResumenTitulo . ':B' . ($filaResumen - 1);
+    $hoja->getStyle($rangoResumen)->getBorders()->getAllBorders()
+        ->setBorderStyle(Border::BORDER_THIN);
+
+    // ---------- Leyenda ----------
+    $filaLeyendaTitulo = $filaResumenTitulo;
+    $hoja->mergeCells('D' . $filaLeyendaTitulo . ':E' . $filaLeyendaTitulo);
+    $hoja->setCellValue('D' . $filaLeyendaTitulo, 'LEYENDA');
+    $hoja->getStyle('D' . $filaLeyendaTitulo)->getFont()->setBold(true)->getColor()->setRGB('FFFFFF');
+    $hoja->getStyle('D' . $filaLeyendaTitulo)->getFill()
+        ->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB($colorEncabezado);
+
+    $leyendaEstados = [
+        'Pendiente' => 'FFC000',
+        'Terminado' => '00B050',
+        'Cobrado'   => '2E75B6',
+        'Fracaso'   => 'C00000',
+    ];
+
+    $filaLeyenda = $filaLeyendaTitulo + 1;
+    foreach ($leyendaEstados as $nombreEstado => $colorHex) {
+        $hoja->getStyle('D' . $filaLeyenda)->getFill()
+            ->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB($colorHex);
+        $hoja->setCellValue('E' . $filaLeyenda, $nombreEstado);
+        $filaLeyenda++;
+    }
+
+    $rangoLeyenda = 'D' . $filaLeyendaTitulo . ':E' . ($filaLeyenda - 1);
+    $hoja->getStyle($rangoLeyenda)->getBorders()->getAllBorders()
+        ->setBorderStyle(Border::BORDER_THIN);
+
+    // ---------- Ajustes finales ----------
+    foreach ($columnas as $columna) {
+        $hoja->getColumnDimension($columna)->setAutoSize(true);
+    }
+
+    // Preparado para imprimir: horizontal, ajustado a 1 página de ancho
+    $hoja->getPageSetup()
+        ->setOrientation(PageSetup::ORIENTATION_LANDSCAPE)
+        ->setFitToPage(true)
+        ->setFitToWidth(1)
+        ->setFitToHeight(0);
+
+    // ---------- Descarga del archivo ----------
+    header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    header('Content-Disposition: attachment; filename="Reporte_Trabajos_' . date('Y-m-d') . '.xlsx"');
+    header('Cache-Control: max-age=0');
+
+    $writer = new Xlsx($spreadsheet);
+    $writer->save('php://output');
     exit;
 }
 
