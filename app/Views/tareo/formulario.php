@@ -122,6 +122,18 @@ function etiquetaActividadFormulario(string $actividad): string
             </select>
         </div>
 
+        <div class="campo">
+            <label for="lugar">Lugar</label>
+            <input
+                type="text"
+                id="lugar"
+                name="lugar"
+                value="<?= valorCampoTareo($tareo, 'lugar') ?>"
+                maxlength="150"
+                required
+            >
+        </div>
+
         <div class="campo campo-ancho-completo">
             <label for="observaciones">Observaciones (opcional)</label>
             <textarea

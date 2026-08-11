@@ -43,9 +43,18 @@ class EquipoController
         return $this->equipoModel->buscarPorId($idEquipo);
     }
 
+    /**
+     * Catálogo completo de equipos, para poblar los selects
+     * de "Tipo de equipo" / "Equipo-Marca" en el formulario.
+     */
+    public function obtenerCatalogo(): array
+    {
+        return $this->equipoModel->obtenerCatalogoEquipos();
+    }
+
     public function registrar(array $datosFormulario): array
     {
-        $camposObligatorios = ['id_trabajo', 'cantidad_equipos', 'contacto', 'fecha_salida', 'hora_salida'];
+        $camposObligatorios = ['id_trabajo', 'contacto', 'fecha_salida', 'hora_salida'];
 
         foreach ($camposObligatorios as $campo) {
             if (empty($datosFormulario[$campo]) && $datosFormulario[$campo] !== '0') {
@@ -55,6 +64,15 @@ class EquipoController
                 ];
             }
         }
+
+        $equiposUtilizados = $this->normalizarEquiposUtilizados($datosFormulario['equipos_utilizados'] ?? []);
+
+        $errorEquipos = $this->validarEquiposUtilizados($equiposUtilizados);
+        if ($errorEquipos !== null) {
+            return ['exito' => false, 'mensaje' => $errorEquipos];
+        }
+
+        $datosFormulario['equipos_utilizados'] = $equiposUtilizados;
 
         $datosFormulario['encargado'] = trim($datosFormulario['encargado'] ?? '') !== ''
             ? trim($datosFormulario['encargado'])
@@ -66,7 +84,7 @@ class EquipoController
         if ($errorValidacion !== null) {
             return ['exito' => false, 'mensaje' => $errorValidacion];
         }
-        
+
 
         $creado = $this->equipoModel->crear($datosFormulario);
 
@@ -88,6 +106,15 @@ class EquipoController
                 'mensaje' => 'El registro que intentas editar no existe.',
             ];
         }
+
+        $equiposUtilizados = $this->normalizarEquiposUtilizados($datosFormulario['equipos_utilizados'] ?? []);
+
+        $errorEquipos = $this->validarEquiposUtilizados($equiposUtilizados);
+        if ($errorEquipos !== null) {
+            return ['exito' => false, 'mensaje' => $errorEquipos];
+        }
+
+        $datosFormulario['equipos_utilizados'] = $equiposUtilizados;
 
         $datosFormulario['encargado'] = trim($datosFormulario['encargado'] ?? '') !== ''
             ? trim($datosFormulario['encargado'])
@@ -120,12 +147,54 @@ class EquipoController
         ];
     }
 
-    private function validarReglasDeNegocio(array $datos): ?string
+    /**
+     * Limpia las filas de equipos utilizados que llegan del
+     * formulario: descarta filas vacías (por ejemplo, una fila
+     * "+ Agregar equipo" que el usuario dejó sin completar) y
+     * castea id_catalogo_equipo/cantidad a entero.
+     */
+    private function normalizarEquiposUtilizados(array $filas): array
     {
-        if ((int) $datos['cantidad_equipos'] <= 0) {
-            return 'La cantidad de equipos debe ser mayor a 0.';
+        $normalizadas = [];
+
+        foreach ($filas as $fila) {
+            $idCatalogoEquipo = $fila['id_catalogo_equipo'] ?? '';
+            $cantidad = $fila['cantidad'] ?? '';
+
+            if ($idCatalogoEquipo === '' || $cantidad === '') {
+                continue;
+            }
+
+            $normalizadas[] = [
+                'id_catalogo_equipo' => (int) $idCatalogoEquipo,
+                'cantidad'           => (int) $cantidad,
+            ];
         }
 
+        return $normalizadas;
+    }
+
+    private function validarEquiposUtilizados(array $equiposUtilizados): ?string
+    {
+        if (empty($equiposUtilizados)) {
+            return 'Debes agregar al menos un equipo utilizado.';
+        }
+
+        foreach ($equiposUtilizados as $fila) {
+            if ($fila['id_catalogo_equipo'] <= 0) {
+                return 'Seleccionaste un equipo inválido en la lista de equipos utilizados.';
+            }
+
+            if ($fila['cantidad'] <= 0) {
+                return 'La cantidad de cada equipo utilizado debe ser mayor a 0.';
+            }
+        }
+
+        return null;
+    }
+
+    private function validarReglasDeNegocio(array $datos): ?string
+    {
         if (!empty($datos['fecha_regreso']) && $datos['fecha_regreso'] < $datos['fecha_salida']) {
             return 'La fecha de regreso no puede ser anterior a la fecha de salida.';
         }

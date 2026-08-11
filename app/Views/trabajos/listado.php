@@ -80,7 +80,7 @@ function formatearPrecio(float $monto): string
                     ⋮
                 </button>
                 <div class="menu-desplegable menu-desplegable-superior menu-oculto" data-menu-panel>
-                    <a href="/trabajos/exportar" class="menu-item">📤 Exportar</a>
+                    <a href="/trabajos/exportar?estado=<?= urlencode($estadoActual) ?>&responsable=<?= (int) $idResponsableActual ?>&buscar=<?= urlencode($busquedaActual) ?>" class="menu-item">📤 Exportar</a>
                     <a href="/trabajos/imprimir?estado=<?= urlencode($estadoActual) ?>&responsable=<?= (int) $idResponsableActual ?>&buscar=<?= urlencode($busquedaActual) ?>" class="menu-item">🖨️ Imprimir</a>
                     <a href="/trabajos/papelera" class="menu-item menu-item-peligro">🗑️ Papelera</a>
                 </div>
@@ -173,7 +173,6 @@ function formatearPrecio(float $monto): string
                                 </button>
                                 <div class="menu-desplegable menu-desplegable-fila menu-oculto" data-menu-panel>
                                     <a href="/trabajos/editar/<?= (int) $trabajo['id_trabajo'] ?>" class="menu-item">✏️ Editar</a>
-                                    <a href="/trabajos/imprimir/<?= (int) $trabajo['id_trabajo'] ?>" class="menu-item">🖨️ Imprimir</a>
                                     <form action="/trabajos/eliminar/<?= (int) $trabajo['id_trabajo'] ?>"
                                         method="POST"
                                         class="menu-form-eliminar"

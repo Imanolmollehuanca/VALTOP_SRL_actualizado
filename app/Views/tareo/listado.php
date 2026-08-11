@@ -74,6 +74,7 @@ function formatearFechaTareo(string $fecha): string
                     <th>Trabajo</th>
                     <th>Trabajador</th>
                     <th>Actividad</th>
+                    <th>Lugar</th>
                     <th>Responsable</th>
                     <th>Acciones</th>
                 </tr>
@@ -81,7 +82,7 @@ function formatearFechaTareo(string $fecha): string
             <tbody>
                 <?php if (empty($registros)): ?>
                     <tr>
-                        <td colspan="6" class="sin-datos">
+                        <td colspan="7" class="sin-datos">
                             No hay registros de tareo todavía.
                         </td>
                     </tr>
@@ -96,6 +97,7 @@ function formatearFechaTareo(string $fecha): string
                                     <?= htmlspecialchars(etiquetaActividad($registro['actividad'])) ?>
                                 </span>
                             </td>
+                            <td><?= htmlspecialchars($registro['lugar']) ?></td>
                             <td><?= htmlspecialchars($registro['nombre_responsable'] ?? '—') ?></td>
                             <td class="acciones">
                                 <a href="/tareo/editar/<?= (int) $registro['id_tareo'] ?>" title="Editar">✏️</a>

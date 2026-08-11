@@ -32,6 +32,9 @@ CREATE TABLE tareo (
         'Vacaciones'
     ) NOT NULL,
 
+    -- Lugar donde se realizó la actividad ese día (texto libre)
+    lugar VARCHAR(150) NOT NULL,
+
     -- Observaciones opcionales del día
     observaciones TEXT NULL,
 

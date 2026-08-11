@@ -34,7 +34,7 @@ class TareoController
 
     public function registrar(array $datosFormulario): array
     {
-        $camposObligatorios = ['id_trabajo', 'id_personal', 'fecha', 'actividad'];
+        $camposObligatorios = ['id_trabajo', 'id_personal', 'fecha', 'actividad', 'lugar'];
 
         foreach ($camposObligatorios as $campo) {
             if (empty($datosFormulario[$campo])) {

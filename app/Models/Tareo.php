@@ -25,9 +25,9 @@ class Tareo
     public function crear(array $datos): bool
     {
         $sql = "INSERT INTO tareo
-                (id_trabajo, id_personal, fecha, actividad, observaciones)
+                (id_trabajo, id_personal, fecha, actividad, lugar, observaciones)
                 VALUES
-                (:id_trabajo, :id_personal, :fecha, :actividad, :observaciones)";
+                (:id_trabajo, :id_personal, :fecha, :actividad, :lugar, :observaciones)";
 
         $stmt = $this->db->prepare($sql);
 
@@ -36,6 +36,7 @@ class Tareo
             'id_personal'   => $datos['id_personal'],
             'fecha'         => $datos['fecha'],
             'actividad'     => $datos['actividad'],
+            'lugar'         => $datos['lugar'],
             'observaciones' => $datos['observaciones'] ?: null,
         ]);
     }
@@ -52,6 +53,7 @@ class Tareo
                     p.nombre_completo AS nombre_trabajador,
                     tar.fecha,
                     tar.actividad,
+                    tar.lugar,
                     tar.observaciones
                 FROM tareo tar
                 INNER JOIN trabajos t ON t.id_trabajo = tar.id_trabajo
@@ -83,6 +85,7 @@ class Tareo
                     id_personal = :id_personal,
                     fecha = :fecha,
                     actividad = :actividad,
+                    lugar = :lugar,
                     observaciones = :observaciones
                 WHERE id_tareo = :id_tareo";
 
@@ -93,6 +96,7 @@ class Tareo
             'id_personal'   => $datos['id_personal'],
             'fecha'         => $datos['fecha'],
             'actividad'     => $datos['actividad'],
+            'lugar'         => $datos['lugar'],
             'observaciones' => $datos['observaciones'] ?: null,
             'id_tareo'      => $idTareo,
         ]);

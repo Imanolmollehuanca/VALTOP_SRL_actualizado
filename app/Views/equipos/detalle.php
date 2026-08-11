@@ -4,7 +4,10 @@
  * -----------------------------------------------------
  * array $equipo  Datos completos del registro, incluyendo
  *                'codigo_trabajo' y 'proyecto' (por el JOIN
- *                hecho en Equipo::listar()/buscarPorId()).
+ *                hecho en Equipo::listar()/buscarPorId()), y
+ *                'equipos_utilizados' (array de filas con
+ *                tipo_equipo, equipo_marca y cantidad, desde
+ *                Equipo::buscarPorId()).
  * -----------------------------------------------------
  */
 
@@ -22,6 +25,13 @@ function claseEstadoEquipoDetalle(string $estado): string
 function formatearMontoDetalle($monto): string
 {
     return number_format((float) $monto, 2);
+}
+
+$equiposUtilizados = $equipo['equipos_utilizados'] ?? [];
+
+$totalEquiposUtilizados = 0;
+foreach ($equiposUtilizados as $filaEquipo) {
+    $totalEquiposUtilizados += (int) $filaEquipo['cantidad'];
 }
 ?>
 <!DOCTYPE html>
@@ -121,6 +131,47 @@ function formatearMontoDetalle($monto): string
                     <?= htmlspecialchars($equipo['estado']) ?>
                 </span>
             </div>
+        </div>
+    </section>
+
+    <section class="panel-datos-generales">
+        <h2>Equipos Utilizados</h2>
+
+        <div class="tabla-wrapper">
+            <table class="tabla-trabajos">
+                <thead>
+                    <tr>
+                        <th>Tipo</th>
+                        <th>Equipo / Marca</th>
+                        <th>Cantidad</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php if (empty($equiposUtilizados)): ?>
+                        <tr>
+                            <td colspan="3" class="sin-datos">
+                                No se registraron equipos utilizados.
+                            </td>
+                        </tr>
+                    <?php else: ?>
+                        <?php foreach ($equiposUtilizados as $filaEquipo): ?>
+                            <tr>
+                                <td><?= htmlspecialchars($filaEquipo['tipo_equipo']) ?></td>
+                                <td><?= htmlspecialchars($filaEquipo['equipo_marca']) ?></td>
+                                <td><?= (int) $filaEquipo['cantidad'] ?></td>
+                            </tr>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                </tbody>
+                <?php if (!empty($equiposUtilizados)): ?>
+                    <tfoot>
+                        <tr>
+                            <td colspan="2" class="dato-etiqueta">TOTAL</td>
+                            <td><strong><?= $totalEquiposUtilizados ?></strong></td>
+                        </tr>
+                    </tfoot>
+                <?php endif; ?>
+            </table>
         </div>
 
         <div class="acciones-expediente">

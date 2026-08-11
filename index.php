@@ -625,11 +625,13 @@ if ($metodoHttp === 'GET' && $rutaSolicitada === '/equipos') {
 // -----------------------------------------------------
 if ($metodoHttp === 'GET' && $rutaSolicitada === '/equipos/nuevo') {
     $trabajos = $trabajoController->listar();
+    $catalogoEquipos = $equipoController->obtenerCatalogo();
 
     renderizarVista(__DIR__ . '/app/Views/equipos/formulario.php', [
-        'trabajos' => $trabajos,
-        'equipo'   => null,
-        'errores'  => [],
+        'trabajos'        => $trabajos,
+        'catalogoEquipos' => $catalogoEquipos,
+        'equipo'          => null,
+        'errores'         => [],
     ]);
     exit;
 }
@@ -642,11 +644,13 @@ if ($metodoHttp === 'POST' && $rutaSolicitada === '/equipos/guardar') {
 
     if (!$resultado['exito']) {
         $trabajos = $trabajoController->listar();
+        $catalogoEquipos = $equipoController->obtenerCatalogo();
 
         renderizarVista(__DIR__ . '/app/Views/equipos/formulario.php', [
-            'trabajos' => $trabajos,
-            'equipo'   => $_POST,
-            'errores'  => [$resultado['mensaje']],
+            'trabajos'        => $trabajos,
+            'catalogoEquipos' => $catalogoEquipos,
+            'equipo'          => $_POST,
+            'errores'         => [$resultado['mensaje']],
         ]);
         exit;
     }
@@ -669,11 +673,13 @@ if ($metodoHttp === 'GET' && preg_match('#^/equipos/editar/(\d+)$#', $rutaSolici
     }
 
     $trabajos = $trabajoController->listar();
+    $catalogoEquipos = $equipoController->obtenerCatalogo();
 
     renderizarVista(__DIR__ . '/app/Views/equipos/formulario.php', [
-        'trabajos' => $trabajos,
-        'equipo'   => $equipo,
-        'errores'  => [],
+        'trabajos'        => $trabajos,
+        'catalogoEquipos' => $catalogoEquipos,
+        'equipo'          => $equipo,
+        'errores'         => [],
     ]);
     exit;
 }
@@ -686,13 +692,15 @@ if ($metodoHttp === 'POST' && preg_match('#^/equipos/actualizar/(\d+)$#', $rutaS
     $resultado = $equipoController->actualizar($idEquipo, $_POST);
 
     if (!$resultado['exito']) {
-        $equipo   = $equipoController->verDetalle($idEquipo);
+        $equipo = $equipoController->verDetalle($idEquipo);
         $trabajos = $trabajoController->listar();
+        $catalogoEquipos = $equipoController->obtenerCatalogo();
 
         renderizarVista(__DIR__ . '/app/Views/equipos/formulario.php', [
-            'trabajos' => $trabajos,
-            'equipo'   => $equipo,
-            'errores'  => [$resultado['mensaje']],
+            'trabajos'        => $trabajos,
+            'catalogoEquipos' => $catalogoEquipos,
+            'equipo'          => $equipo,
+            'errores'         => [$resultado['mensaje']],
         ]);
         exit;
     }
