@@ -22,6 +22,16 @@ class EquipoController
     // esta línea (o convertirla en una consulta real).
     public const ENCARGADO_POR_DEFECTO = 'Ingrid Castillo';
 
+    // Única fuente de verdad de los motivos válidos para un cambio
+    // de equipo (sección "Registrar cambio de equipo").
+    public const MOTIVOS_VALIDOS = [
+        'Equipo con falla',
+        'Equipo dañado',
+        'Mantenimiento',
+        'Solicitud del cliente',
+        'Otro',
+    ];
+
     private Equipo $equipoModel;
 
     public function __construct()
@@ -132,6 +142,124 @@ class EquipoController
             'mensaje' => $actualizado
                 ? 'Registro de equipos actualizado correctamente.'
                 : 'Ocurrió un error al actualizar el registro.',
+        ];
+    }
+
+    /**
+     * Registra un cambio de equipo (retirar uno / agregar otro) sobre
+     * un registro existente. Es una acción independiente de actualizar():
+     * no toca los demás campos del registro general, no depende del
+     * botón "Actualizar Registro" y siempre queda guardada en el
+     * historial permanente (equipos_cambios), sin importar qué pase
+     * después con el resto del formulario.
+     *
+     * $datosFormulario debe incluir:
+     *   id_catalogo_equipo_retirado, cantidad_retirada,
+     *   id_catalogo_equipo_nuevo, cantidad_nueva,
+     *   motivo, fecha_cambio, observacion (opcional)
+     */
+    public function registrarCambio(int $idEquipo, array $datosFormulario): array
+    {
+        $equipoExistente = $this->equipoModel->buscarPorId($idEquipo);
+
+        if ($equipoExistente === null) {
+            return [
+                'exito'   => false,
+                'mensaje' => 'El registro de equipos sobre el que intentas registrar un cambio no existe.',
+            ];
+        }
+
+        $camposObligatorios = [
+            'id_catalogo_equipo_retirado',
+            'cantidad_retirada',
+            'id_catalogo_equipo_nuevo',
+            'cantidad_nueva',
+            'motivo',
+            'fecha_cambio',
+        ];
+
+        foreach ($camposObligatorios as $campo) {
+            if (empty($datosFormulario[$campo]) && $datosFormulario[$campo] !== '0') {
+                return [
+                    'exito'   => false,
+                    'mensaje' => "El campo '$campo' es obligatorio para registrar el cambio de equipo.",
+                ];
+            }
+        }
+
+        $idCatalogoRetirado = (int) $datosFormulario['id_catalogo_equipo_retirado'];
+        $cantidadRetirada   = (int) $datosFormulario['cantidad_retirada'];
+        $idCatalogoNuevo    = (int) $datosFormulario['id_catalogo_equipo_nuevo'];
+        $cantidadNueva      = (int) $datosFormulario['cantidad_nueva'];
+        $motivo             = trim($datosFormulario['motivo']);
+
+        if ($idCatalogoRetirado <= 0) {
+            return ['exito' => false, 'mensaje' => 'Seleccionaste un equipo retirado inválido.'];
+        }
+
+        if ($idCatalogoNuevo <= 0) {
+            return ['exito' => false, 'mensaje' => 'Seleccionaste un equipo nuevo inválido.'];
+        }
+
+        if ($cantidadRetirada <= 0) {
+            return ['exito' => false, 'mensaje' => 'La cantidad retirada debe ser mayor a 0.'];
+        }
+
+        if ($cantidadNueva <= 0) {
+            return ['exito' => false, 'mensaje' => 'La cantidad nueva debe ser mayor a 0.'];
+        }
+
+        if (!in_array($motivo, self::MOTIVOS_VALIDOS, true)) {
+            return ['exito' => false, 'mensaje' => 'El motivo del cambio no es válido.'];
+        }
+
+        // El equipo retirado debe pertenecer actualmente al registro
+        // (misma regla que ya aplica Equipo::registrarCambio() en la
+        // base de datos; se valida también aquí para dar un mensaje
+        // más claro antes de llegar al modelo).
+        $perteneceAlRegistro = false;
+        foreach ($equipoExistente['equipos_utilizados'] as $filaActual) {
+            if ((int) $filaActual['id_catalogo_equipo'] === $idCatalogoRetirado) {
+                $perteneceAlRegistro = true;
+
+                if ($cantidadRetirada > (int) $filaActual['cantidad']) {
+                    return [
+                        'exito'   => false,
+                        'mensaje' => 'La cantidad retirada no puede ser mayor a la cantidad actualmente disponible de ese equipo.',
+                    ];
+                }
+
+                break;
+            }
+        }
+
+        if (!$perteneceAlRegistro) {
+            return [
+                'exito'   => false,
+                'mensaje' => 'El equipo retirado no pertenece actualmente a este registro.',
+            ];
+        }
+
+        $datosCambio = [
+            'id_catalogo_equipo_retirado' => $idCatalogoRetirado,
+            'cantidad_retirada'           => $cantidadRetirada,
+            'id_catalogo_equipo_nuevo'    => $idCatalogoNuevo,
+            'cantidad_nueva'              => $cantidadNueva,
+            'motivo'                      => $motivo,
+            'fecha_cambio'                => $datosFormulario['fecha_cambio'],
+            'observacion'                 => trim($datosFormulario['observacion'] ?? '') !== ''
+                ? trim($datosFormulario['observacion'])
+                : null,
+            'usuario'                     => $datosFormulario['usuario'] ?? null,
+        ];
+
+        $registrado = $this->equipoModel->registrarCambio($idEquipo, $datosCambio);
+
+        return [
+            'exito'   => $registrado,
+            'mensaje' => $registrado
+                ? 'Cambio de equipo registrado correctamente.'
+                : 'No se pudo registrar el cambio de equipo. Verifica la cantidad disponible del equipo retirado.',
         ];
     }
 

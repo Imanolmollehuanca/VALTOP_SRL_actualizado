@@ -710,6 +710,42 @@ if ($metodoHttp === 'POST' && preg_match('#^/equipos/actualizar/(\d+)$#', $rutaS
 }
 
 // -----------------------------------------------------
+// POST /equipos/registrar-cambio/{id}  (registrar cambio de
+// equipo: retirar uno / agregar otro, con historial. Acción
+// independiente de "Actualizar Registro"; su propio formulario
+// y su propio POST, dentro de la pantalla de edición.)
+// -----------------------------------------------------
+if ($metodoHttp === 'POST' && preg_match('#^/equipos/registrar-cambio/(\d+)$#', $rutaSolicitada, $coincidencias)) {
+    $idEquipo  = (int) $coincidencias[1];
+    $resultado = $equipoController->registrarCambio($idEquipo, $_POST);
+
+    if (!$resultado['exito']) {
+        $equipo = $equipoController->verDetalle($idEquipo);
+
+        if ($equipo === null) {
+            http_response_code(404);
+            echo 'Registro de equipos no encontrado.';
+            exit;
+        }
+
+        $trabajos = $trabajoController->listar();
+        $catalogoEquipos = $equipoController->obtenerCatalogo();
+
+        renderizarVista(__DIR__ . '/app/Views/equipos/formulario.php', [
+            'trabajos'        => $trabajos,
+            'catalogoEquipos' => $catalogoEquipos,
+            'equipo'          => $equipo,
+            'errores'         => [$resultado['mensaje']],
+            'datosCambio'     => $_POST, // para no perder lo que el usuario ya escribió en "Registrar cambio de equipo"
+        ]);
+        exit;
+    }
+
+    header('Location: /equipos/ver/' . $idEquipo);
+    exit;
+}
+
+// -----------------------------------------------------
 // GET /equipos/ver/{id}  (detalle de un registro, botón 👁️)
 // -----------------------------------------------------
 if ($metodoHttp === 'GET' && preg_match('#^/equipos/ver/(\d+)$#', $rutaSolicitada, $coincidencias)) {

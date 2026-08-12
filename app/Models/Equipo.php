@@ -6,16 +6,22 @@ require_once __DIR__ . '/../../config/Database.php';
  * Clase Equipo (Modelo)
  * -----------------------------------------------------
  * Responsable única: gestionar el acceso a la tabla
- * 'equipos' en la base de datos, junto con su detalle
- * relacional en 'equipos_detalle' (equipos específicos
- * del catálogo usados en cada registro) y el catálogo
- * maestro en 'catalogo_equipos'.
+ * 'equipos' en la base de datos, junto con:
+ *
+ * - 'equipos_detalle'  → estado ACTUAL de equipos usados
+ *                        en cada registro (se reemplaza
+ *                        por completo al editar el
+ *                        formulario general).
+ * - 'catalogo_equipos' → catálogo maestro de equipos.
+ * - 'equipos_cambios'  → historial PERMANENTE de cambios
+ *                        de equipo (retirar/agregar). Solo
+ *                        se agregan filas nuevas, nunca se
+ *                        editan ni se borran.
  *
  * Cada registro de 'equipos' representa el uso/préstamo
  * general de equipos en un trabajo específico (relación
  * por id_trabajo). 'cantidad_equipos' se calcula siempre
- * como la suma de las cantidades de 'equipos_detalle';
- * ya no se toma directo del formulario.
+ * como la suma de las cantidades de 'equipos_detalle'.
  * -----------------------------------------------------
  */
 class Equipo
@@ -124,10 +130,12 @@ class Equipo
     }
 
     /**
-     * Trae el registro general junto con sus filas de
-     * detalle (equipos específicos usados), ya unidas al
-     * catálogo para tener tipo_equipo y equipo_marca listos
-     * para mostrar en el formulario de edición y en el detalle.
+     * Trae el registro general junto con:
+     * - 'equipos_utilizados'  → estado actual (equipos_detalle)
+     * - 'historial_cambios'   → historial permanente (equipos_cambios)
+     *
+     * Ambos ya unidos al catálogo, listos para pintar el
+     * formulario de edición y el detalle sin consultas extra.
      */
     public function buscarPorId(int $idEquipo): ?array
     {
@@ -149,13 +157,15 @@ class Equipo
         }
 
         $resultado['equipos_utilizados'] = $this->listarDetallePorEquipo($idEquipo);
+        $resultado['historial_cambios']  = $this->listarHistorialCambios($idEquipo);
 
         return $resultado;
     }
 
     /**
      * Actualiza el registro general y reemplaza por completo
-     * sus filas de detalle con las que llegan del formulario.
+     * sus filas de detalle con las que llegan del formulario
+     * general (edición libre, sin generar historial).
      *
      * $datos debe incluir 'equipos_utilizados' igual que en crear().
      */
@@ -216,6 +226,148 @@ class Equipo
         }
     }
 
+    /**
+     * Registra un cambio de equipo controlado y auditado:
+     * retira cantidad de un equipo actual, agrega/aumenta
+     * cantidad de un equipo nuevo, recalcula el total y
+     * guarda una fila permanente en el historial.
+     *
+     * Todo ocurre en una única transacción: si algo falla,
+     * no queda nada aplicado a medias.
+     *
+     * $datos debe incluir:
+     *   id_catalogo_equipo_retirado, cantidad_retirada,
+     *   id_catalogo_equipo_nuevo, cantidad_nueva,
+     *   motivo, fecha_cambio, observacion (opcional), usuario (opcional)
+     *
+     * Devuelve false si el equipo retirado no existe en los
+     * equipos actuales del registro, o si no hay cantidad
+     * suficiente para retirar (nunca deja cantidades negativas).
+     */
+    public function registrarCambio(int $idEquipo, array $datos): bool
+    {
+        $this->db->beginTransaction();
+
+        try {
+            // 1. Verificar cantidad actualmente disponible del equipo retirado
+            //    (FOR UPDATE: bloquea la fila mientras dura la transacción,
+            //    para evitar condiciones de carrera con otro cambio simultáneo)
+            $sqlActual = "SELECT cantidad FROM equipos_detalle
+                          WHERE id_equipo = :id_equipo AND id_catalogo_equipo = :id_catalogo_equipo
+                          FOR UPDATE";
+
+            $stmt = $this->db->prepare($sqlActual);
+            $stmt->execute([
+                'id_equipo'          => $idEquipo,
+                'id_catalogo_equipo' => $datos['id_catalogo_equipo_retirado'],
+            ]);
+            $filaActual = $stmt->fetch();
+
+            if ($filaActual === false || (int) $filaActual['cantidad'] < (int) $datos['cantidad_retirada']) {
+                $this->db->rollBack();
+                return false;
+            }
+
+            $cantidadRestante = (int) $filaActual['cantidad'] - (int) $datos['cantidad_retirada'];
+
+            // 2. Descontar (o eliminar si llega a 0) la fila del equipo retirado
+            if ($cantidadRestante > 0) {
+                $sqlActualizarRetirado = "UPDATE equipos_detalle SET cantidad = :cantidad
+                                          WHERE id_equipo = :id_equipo AND id_catalogo_equipo = :id_catalogo_equipo";
+                $stmt = $this->db->prepare($sqlActualizarRetirado);
+                $stmt->execute([
+                    'cantidad'           => $cantidadRestante,
+                    'id_equipo'          => $idEquipo,
+                    'id_catalogo_equipo' => $datos['id_catalogo_equipo_retirado'],
+                ]);
+            } else {
+                $sqlEliminarRetirado = "DELETE FROM equipos_detalle
+                                        WHERE id_equipo = :id_equipo AND id_catalogo_equipo = :id_catalogo_equipo";
+                $stmt = $this->db->prepare($sqlEliminarRetirado);
+                $stmt->execute([
+                    'id_equipo'          => $idEquipo,
+                    'id_catalogo_equipo' => $datos['id_catalogo_equipo_retirado'],
+                ]);
+            }
+
+            // 3. Sumar cantidad al equipo nuevo si ya estaba entre los actuales,
+            //    o insertar una fila nueva si no estaba
+            $sqlBuscarNuevo = "SELECT cantidad FROM equipos_detalle
+                               WHERE id_equipo = :id_equipo AND id_catalogo_equipo = :id_catalogo_equipo
+                               FOR UPDATE";
+            $stmt = $this->db->prepare($sqlBuscarNuevo);
+            $stmt->execute([
+                'id_equipo'          => $idEquipo,
+                'id_catalogo_equipo' => $datos['id_catalogo_equipo_nuevo'],
+            ]);
+            $filaNuevo = $stmt->fetch();
+
+            if ($filaNuevo !== false) {
+                $sqlSumarNuevo = "UPDATE equipos_detalle SET cantidad = cantidad + :cantidad
+                                  WHERE id_equipo = :id_equipo AND id_catalogo_equipo = :id_catalogo_equipo";
+                $stmt = $this->db->prepare($sqlSumarNuevo);
+                $stmt->execute([
+                    'cantidad'           => (int) $datos['cantidad_nueva'],
+                    'id_equipo'          => $idEquipo,
+                    'id_catalogo_equipo' => $datos['id_catalogo_equipo_nuevo'],
+                ]);
+            } else {
+                $sqlInsertarNuevo = "INSERT INTO equipos_detalle (id_equipo, id_catalogo_equipo, cantidad)
+                                     VALUES (:id_equipo, :id_catalogo_equipo, :cantidad)";
+                $stmt = $this->db->prepare($sqlInsertarNuevo);
+                $stmt->execute([
+                    'id_equipo'          => $idEquipo,
+                    'id_catalogo_equipo' => $datos['id_catalogo_equipo_nuevo'],
+                    'cantidad'           => (int) $datos['cantidad_nueva'],
+                ]);
+            }
+
+            // 4. Recalcular el total de equipos del registro general
+            $sqlTotal = "SELECT COALESCE(SUM(cantidad), 0) AS total
+                        FROM equipos_detalle WHERE id_equipo = :id_equipo";
+            $stmt = $this->db->prepare($sqlTotal);
+            $stmt->execute(['id_equipo' => $idEquipo]);
+            $total = (int) $stmt->fetch()['total'];
+
+            $sqlActualizarTotal = "UPDATE equipos SET cantidad_equipos = :cantidad_equipos
+                                   WHERE id_equipo = :id_equipo";
+            $stmt = $this->db->prepare($sqlActualizarTotal);
+            $stmt->execute([
+                'cantidad_equipos' => $total,
+                'id_equipo'        => $idEquipo,
+            ]);
+
+            // 5. Guardar el movimiento en el historial permanente
+            $sqlHistorial = "INSERT INTO equipos_cambios
+                            (id_equipo, id_catalogo_equipo_retirado, cantidad_retirada,
+                             id_catalogo_equipo_nuevo, cantidad_nueva, motivo, fecha_cambio,
+                             observacion, usuario)
+                            VALUES
+                            (:id_equipo, :id_catalogo_equipo_retirado, :cantidad_retirada,
+                             :id_catalogo_equipo_nuevo, :cantidad_nueva, :motivo, :fecha_cambio,
+                             :observacion, :usuario)";
+            $stmt = $this->db->prepare($sqlHistorial);
+            $stmt->execute([
+                'id_equipo'                   => $idEquipo,
+                'id_catalogo_equipo_retirado' => $datos['id_catalogo_equipo_retirado'],
+                'cantidad_retirada'           => (int) $datos['cantidad_retirada'],
+                'id_catalogo_equipo_nuevo'    => $datos['id_catalogo_equipo_nuevo'],
+                'cantidad_nueva'              => (int) $datos['cantidad_nueva'],
+                'motivo'                      => $datos['motivo'],
+                'fecha_cambio'                => $datos['fecha_cambio'],
+                'observacion'                 => $datos['observacion'] ?: null,
+                'usuario'                     => $datos['usuario'] ?: null,
+            ]);
+
+            $this->db->commit();
+
+            return true;
+        } catch (\Throwable $e) {
+            $this->db->rollBack();
+            return false;
+        }
+    }
+
     public function eliminar(int $idEquipo): bool
     {
         $sql = "DELETE FROM equipos WHERE id_equipo = :id_equipo";
@@ -227,8 +379,8 @@ class Equipo
 
     /**
      * Lista completa del catálogo de equipos, para poblar
-     * los selectores de Tipo de equipo / Equipo-Marca en
-     * el formulario de registro/edición.
+     * los selects de "Tipo de equipo" / "Equipo-Marca" en
+     * el formulario (Equipos Utilizados y Equipo nuevo).
      */
     public function obtenerCatalogoEquipos(): array
     {
@@ -242,9 +394,11 @@ class Equipo
     }
 
     /**
-     * Filas de equipos_detalle de un registro, ya unidas al
-     * catálogo para traer tipo_equipo y equipo_marca listos
-     * para mostrar (formulario de edición y vista de detalle).
+     * Filas de equipos_detalle de un registro (estado ACTUAL),
+     * ya unidas al catálogo. También se usa para poblar el
+     * select "Equipo retirado" en Registrar cambio de equipo,
+     * ya que solo deben aparecer ahí los equipos que el
+     * registro tiene actualmente.
      */
     private function listarDetallePorEquipo(int $idEquipo): array
     {
@@ -258,6 +412,39 @@ class Equipo
                 INNER JOIN catalogo_equipos ce ON ce.id_catalogo_equipo = ed.id_catalogo_equipo
                 WHERE ed.id_equipo = :id_equipo
                 ORDER BY ed.id_equipo_detalle ASC";
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute(['id_equipo' => $idEquipo]);
+
+        return $stmt->fetchAll();
+    }
+
+    /**
+     * Historial permanente de cambios de un registro, ya unido
+     * al catálogo (dos veces: equipo retirado y equipo nuevo)
+     * para traer sus nombres listos para mostrar. Se ordena del
+     * cambio más reciente al más antiguo.
+     */
+    private function listarHistorialCambios(int $idEquipo): array
+    {
+        $sql = "SELECT
+                    ec.id_cambio,
+                    ec.fecha_cambio,
+                    ec.cantidad_retirada,
+                    ec.cantidad_nueva,
+                    ec.motivo,
+                    ec.observacion,
+                    ec.usuario,
+                    ec.creado_en,
+                    cr.tipo_equipo  AS tipo_equipo_retirado,
+                    cr.equipo_marca AS equipo_marca_retirado,
+                    cn.tipo_equipo  AS tipo_equipo_nuevo,
+                    cn.equipo_marca AS equipo_marca_nuevo
+                FROM equipos_cambios ec
+                INNER JOIN catalogo_equipos cr ON cr.id_catalogo_equipo = ec.id_catalogo_equipo_retirado
+                INNER JOIN catalogo_equipos cn ON cn.id_catalogo_equipo = ec.id_catalogo_equipo_nuevo
+                WHERE ec.id_equipo = :id_equipo
+                ORDER BY ec.fecha_cambio DESC, ec.id_cambio DESC";
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute(['id_equipo' => $idEquipo]);

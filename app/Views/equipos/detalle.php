@@ -4,10 +4,15 @@
  * -----------------------------------------------------
  * array $equipo  Datos completos del registro, incluyendo
  *                'codigo_trabajo' y 'proyecto' (por el JOIN
- *                hecho en Equipo::listar()/buscarPorId()), y
+ *                hecho en Equipo::listar()/buscarPorId()),
  *                'equipos_utilizados' (array de filas con
  *                tipo_equipo, equipo_marca y cantidad, desde
- *                Equipo::buscarPorId()).
+ *                Equipo::buscarPorId()) y 'historial_cambios'
+ *                (array de cambios permanentes: fecha_cambio,
+ *                cantidad_retirada, cantidad_nueva, motivo,
+ *                observacion, usuario, tipo_equipo_retirado,
+ *                equipo_marca_retirado, tipo_equipo_nuevo,
+ *                equipo_marca_nuevo).
  * -----------------------------------------------------
  */
 
@@ -28,6 +33,7 @@ function formatearMontoDetalle($monto): string
 }
 
 $equiposUtilizados = $equipo['equipos_utilizados'] ?? [];
+$historialCambios  = $equipo['historial_cambios'] ?? [];
 
 $totalEquiposUtilizados = 0;
 foreach ($equiposUtilizados as $filaEquipo) {
@@ -135,7 +141,7 @@ foreach ($equiposUtilizados as $filaEquipo) {
     </section>
 
     <section class="panel-datos-generales">
-        <h2>Equipos Utilizados</h2>
+        <h2>📦 Equipos actualmente utilizados</h2>
 
         <div class="tabla-wrapper">
             <table class="tabla-trabajos">
@@ -171,6 +177,53 @@ foreach ($equiposUtilizados as $filaEquipo) {
                         </tr>
                     </tfoot>
                 <?php endif; ?>
+            </table>
+        </div>
+    </section>
+
+    <section class="panel-datos-generales">
+        <h2>🔄 Historial de cambios</h2>
+
+        <div class="tabla-wrapper">
+            <table class="tabla-trabajos">
+                <thead>
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Equipo retirado</th>
+                        <th>Cant.</th>
+                        <th>Equipo nuevo</th>
+                        <th>Cant.</th>
+                        <th>Motivo</th>
+                        <th>Observación</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php if (empty($historialCambios)): ?>
+                        <tr>
+                            <td colspan="7" class="sin-datos">
+                                No se registraron cambios de equipo.
+                            </td>
+                        </tr>
+                    <?php else: ?>
+                        <?php foreach ($historialCambios as $cambio): ?>
+                            <tr>
+                                <td><?= htmlspecialchars($cambio['fecha_cambio']) ?></td>
+                                <td>
+                                    <?= htmlspecialchars($cambio['tipo_equipo_retirado']) ?>
+                                    — <?= htmlspecialchars($cambio['equipo_marca_retirado']) ?>
+                                </td>
+                                <td><?= (int) $cambio['cantidad_retirada'] ?></td>
+                                <td>
+                                    <?= htmlspecialchars($cambio['tipo_equipo_nuevo']) ?>
+                                    — <?= htmlspecialchars($cambio['equipo_marca_nuevo']) ?>
+                                </td>
+                                <td><?= (int) $cambio['cantidad_nueva'] ?></td>
+                                <td><?= htmlspecialchars($cambio['motivo']) ?></td>
+                                <td><?= htmlspecialchars($cambio['observacion'] ?: '—') ?></td>
+                            </tr>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                </tbody>
             </table>
         </div>
 

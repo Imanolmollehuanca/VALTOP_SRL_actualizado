@@ -10,8 +10,14 @@
  * ?array  $equipo          Datos a editar, o null si es "Nuevo Registro".
  *                           Cuando es edición, trae 'equipos_utilizados'
  *                           (array de filas ya usadas: id_catalogo_equipo,
- *                           cantidad, tipo_equipo, equipo_marca).
+ *                           cantidad, tipo_equipo, equipo_marca) y
+ *                           'historial_cambios'.
  * array   $errores         Mensajes de error de validación
+ * ?array  $datosCambio     Datos ya escritos por el usuario en la sección
+ *                           "Registrar cambio de equipo" cuando ese envío
+ *                           falló (para no perderlos). Viene de $_POST tal
+ *                           cual lo mandó index.php en la ruta
+ *                           POST /equipos/registrar-cambio/{id}.
  * -----------------------------------------------------
  */
 
@@ -27,6 +33,14 @@ function valorCampoEquipo(?array $equipo, string $campo, string $porDefecto = ''
     return htmlspecialchars($equipo[$campo] ?? $porDefecto);
 }
 
+// Helper para repoblar los campos de "Registrar cambio de equipo"
+// desde $datosCambio (si el envío anterior falló), sin colisionar
+// con valorCampoEquipo() que trabaja sobre $equipo.
+function valorCampoCambio(?array $datosCambio, string $campo, string $porDefecto = ''): string
+{
+    return htmlspecialchars($datosCambio[$campo] ?? $porDefecto);
+}
+
 // Tipos de equipo únicos, en el orden en que aparecen en el catálogo,
 // para poblar el primer selector de cada fila (Tipo de equipo).
 $tiposEquipo = [];
@@ -40,6 +54,13 @@ foreach ($catalogoEquipos as $itemCatalogo) {
 $filasIniciales = $esEdicion && !empty($equipo['equipos_utilizados'])
     ? $equipo['equipos_utilizados']
     : [];
+
+// La sección "Registrar cambio de equipo" solo aplica en edición y
+// solo cuando el estado actual del registro es "Cambio de equipo".
+$mostrarSeccionCambio = $esEdicion && ($equipo['estado'] ?? '') === 'Cambio de equipo';
+
+// $datosCambio puede no venir definida (flujo normal, sin errores previos).
+$datosCambio = $datosCambio ?? null;
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -277,6 +298,120 @@ $filasIniciales = $esEdicion && !empty($equipo['equipos_utilizados'])
         </div>
 
     </form>
+
+    <?php if ($mostrarSeccionCambio): ?>
+        <!--
+            Sección "Registrar cambio de equipo": formulario HTML
+            independiente del formulario principal (#formEquipos), con
+            su propio action/POST hacia /equipos/registrar-cambio/{id}.
+            No modifica ni depende del botón "Actualizar Registro".
+        -->
+        <section class="card-formulario card-registrar-cambio">
+            <h2>🔄 Registrar cambio de equipo</h2>
+
+            <form
+                action="/equipos/registrar-cambio/<?= (int) $equipo['id_equipo'] ?>"
+                method="POST"
+                class="grupo-campos"
+                id="formRegistrarCambio"
+            >
+                <div class="campo">
+                    <label for="id_catalogo_equipo_retirado">Equipo retirado</label>
+                    <select id="id_catalogo_equipo_retirado" name="id_catalogo_equipo_retirado" required>
+                        <option value="">-- Seleccione --</option>
+                        <?php foreach ($equipo['equipos_utilizados'] as $filaActual): ?>
+                            <option
+                                value="<?= (int) $filaActual['id_catalogo_equipo'] ?>"
+                                <?= (valorCampoCambio($datosCambio, 'id_catalogo_equipo_retirado') === (string) $filaActual['id_catalogo_equipo']) ? 'selected' : '' ?>
+                            >
+                                <?= htmlspecialchars($filaActual['tipo_equipo']) ?> — <?= htmlspecialchars($filaActual['equipo_marca']) ?> (disp: <?= (int) $filaActual['cantidad'] ?>)
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+
+                <div class="campo">
+                    <label for="cantidad_retirada">Cantidad retirada</label>
+                    <input
+                        type="number"
+                        id="cantidad_retirada"
+                        name="cantidad_retirada"
+                        min="1"
+                        value="<?= valorCampoCambio($datosCambio, 'cantidad_retirada', '1') ?>"
+                        required
+                    >
+                </div>
+
+                <div class="campo">
+                    <label for="motivo">Motivo del cambio</label>
+                    <select id="motivo" name="motivo" required>
+                        <option value="">-- Seleccione --</option>
+                        <?php foreach (EquipoController::MOTIVOS_VALIDOS as $motivoOpcion): ?>
+                            <option
+                                value="<?= htmlspecialchars($motivoOpcion) ?>"
+                                <?= (valorCampoCambio($datosCambio, 'motivo') === $motivoOpcion) ? 'selected' : '' ?>
+                            >
+                                <?= htmlspecialchars($motivoOpcion) ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+
+                <div class="campo">
+                    <label for="fecha_cambio">Fecha del cambio</label>
+                    <input
+                        type="date"
+                        id="fecha_cambio"
+                        name="fecha_cambio"
+                        value="<?= valorCampoCambio($datosCambio, 'fecha_cambio') ?>"
+                        required
+                    >
+                </div>
+
+                <div class="campo">
+                    <label for="id_catalogo_equipo_nuevo">Equipo nuevo</label>
+                    <select id="id_catalogo_equipo_nuevo" name="id_catalogo_equipo_nuevo" required>
+                        <option value="">-- Seleccione --</option>
+                        <?php foreach ($catalogoEquipos as $itemCatalogo): ?>
+                            <option
+                                value="<?= (int) $itemCatalogo['id_catalogo_equipo'] ?>"
+                                <?= (valorCampoCambio($datosCambio, 'id_catalogo_equipo_nuevo') === (string) $itemCatalogo['id_catalogo_equipo']) ? 'selected' : '' ?>
+                            >
+                                <?= htmlspecialchars($itemCatalogo['tipo_equipo']) ?> — <?= htmlspecialchars($itemCatalogo['equipo_marca']) ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+
+                <div class="campo">
+                    <label for="cantidad_nueva">Cantidad nueva</label>
+                    <input
+                        type="number"
+                        id="cantidad_nueva"
+                        name="cantidad_nueva"
+                        min="1"
+                        value="<?= valorCampoCambio($datosCambio, 'cantidad_nueva', '1') ?>"
+                        required
+                    >
+                </div>
+
+                <div class="campo campo-ancho-completo">
+                    <label for="observacion">Observación</label>
+                    <textarea
+                        id="observacion"
+                        name="observacion"
+                        placeholder="Detalle opcional sobre el cambio..."
+                    ><?= valorCampoCambio($datosCambio, 'observacion') ?></textarea>
+                </div>
+
+                <div class="acciones-formulario">
+                    <button type="submit" class="btn btn-primario">
+                        + Registrar cambio
+                    </button>
+                </div>
+            </form>
+        </section>
+    <?php endif; ?>
 
 </main>
 
