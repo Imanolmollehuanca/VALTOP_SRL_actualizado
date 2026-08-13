@@ -6,11 +6,12 @@
  *                           (cada uno: ['id_trabajo' => .., 'codigo_trabajo' => .., 'proyecto' => ..])
  * array   $catalogoEquipos Catálogo completo de equipos, desde
  *                           EquipoController::obtenerCatalogo()
- *                           (cada uno: ['id_catalogo_equipo' => .., 'tipo_equipo' => .., 'equipo_marca' => ..])
+ *                           (cada uno: ['id_catalogo_equipo' => .., 'tipo_equipo' => ..,
+ *                           'equipo_marca' => .., 'serie' => ..])
  * ?array  $equipo          Datos a editar, o null si es "Nuevo Registro".
  *                           Cuando es edición, trae 'equipos_utilizados'
  *                           (array de filas ya usadas: id_catalogo_equipo,
- *                           cantidad, tipo_equipo, equipo_marca) y
+ *                           cantidad, tipo_equipo, equipo_marca, serie) y
  *                           'historial_cambios'.
  * array   $errores         Mensajes de error de validación
  * ?array  $datosCambio     Datos ya escritos por el usuario en la sección
@@ -18,6 +19,15 @@
  *                           falló (para no perderlos). Viene de $_POST tal
  *                           cual lo mandó index.php en la ruta
  *                           POST /equipos/registrar-cambio/{id}.
+ *
+ * NOTA SOBRE LA SERIE:
+ * La serie pertenece al equipo del catálogo (catalogo_equipos.serie),
+ * no al registro de uso. El usuario NUNCA la escribe manualmente:
+ * siempre se autocompleta en el frontend a partir del
+ * id_catalogo_equipo seleccionado, tomando el dato ya presente en
+ * $catalogoEquipos. La identificación real del equipo sigue siendo
+ * exclusivamente id_catalogo_equipo (nunca el nombre/marca), porque
+ * existen equipos con el mismo nombre pero series distintas.
  * -----------------------------------------------------
  */
 
@@ -39,6 +49,16 @@ function valorCampoEquipo(?array $equipo, string $campo, string $porDefecto = ''
 function valorCampoCambio(?array $datosCambio, string $campo, string $porDefecto = ''): string
 {
     return htmlspecialchars($datosCambio[$campo] ?? $porDefecto);
+}
+
+// Texto a mostrar en los <option> de equipo/marca, incluyendo la
+// serie, para diferenciar equipos con el mismo nombre. El VALOR del
+// <option> sigue siendo siempre id_catalogo_equipo.
+function etiquetaEquipoConSerie(string $equipoMarca, ?string $serie): string
+{
+    $serieTexto = ($serie !== null && trim($serie) !== '') ? $serie : 'Sin serie';
+
+    return $equipoMarca . ' — Serie ' . $serieTexto;
 }
 
 // Tipos de equipo únicos, en el orden en que aparecen en el catálogo,
@@ -271,6 +291,7 @@ $datosCambio = $datosCambio ?? null;
                         <tr>
                             <th>Tipo de equipo</th>
                             <th>Equipo / Marca</th>
+                            <th>Serie</th>
                             <th>Cantidad</th>
                             <th></th>
                         </tr>
@@ -278,7 +299,10 @@ $datosCambio = $datosCambio ?? null;
                     <tbody id="filasEquiposUtilizados">
                         <!-- Las filas se generan por JavaScript, tanto las
                              iniciales (si es edición) como las que el
-                             usuario agregue con "+ Agregar equipo". -->
+                             usuario agregue con "+ Agregar equipo". La
+                             columna "Serie" es siempre de solo lectura:
+                             se autocompleta según el equipo seleccionado
+                             y nunca se escribe a mano. -->
                     </tbody>
                 </table>
             </div>
@@ -324,7 +348,7 @@ $datosCambio = $datosCambio ?? null;
                                 value="<?= (int) $filaActual['id_catalogo_equipo'] ?>"
                                 <?= (valorCampoCambio($datosCambio, 'id_catalogo_equipo_retirado') === (string) $filaActual['id_catalogo_equipo']) ? 'selected' : '' ?>
                             >
-                                <?= htmlspecialchars($filaActual['tipo_equipo']) ?> — <?= htmlspecialchars($filaActual['equipo_marca']) ?> (disp: <?= (int) $filaActual['cantidad'] ?>)
+                                <?= htmlspecialchars($filaActual['tipo_equipo']) ?> — <?= htmlspecialchars(etiquetaEquipoConSerie($filaActual['equipo_marca'], $filaActual['serie'] ?? null)) ?> (disp: <?= (int) $filaActual['cantidad'] ?>)
                             </option>
                         <?php endforeach; ?>
                     </select>
@@ -377,7 +401,7 @@ $datosCambio = $datosCambio ?? null;
                                 value="<?= (int) $itemCatalogo['id_catalogo_equipo'] ?>"
                                 <?= (valorCampoCambio($datosCambio, 'id_catalogo_equipo_nuevo') === (string) $itemCatalogo['id_catalogo_equipo']) ? 'selected' : '' ?>
                             >
-                                <?= htmlspecialchars($itemCatalogo['tipo_equipo']) ?> — <?= htmlspecialchars($itemCatalogo['equipo_marca']) ?>
+                                <?= htmlspecialchars($itemCatalogo['tipo_equipo']) ?> — <?= htmlspecialchars(etiquetaEquipoConSerie($itemCatalogo['equipo_marca'], $itemCatalogo['serie'] ?? null)) ?>
                             </option>
                         <?php endforeach; ?>
                     </select>
@@ -425,6 +449,15 @@ $datosCambio = $datosCambio ?? null;
     const totalInput = document.getElementById('cantidad_equipos_total');
     let contadorFilas = 0;
 
+    // Texto a mostrar en los <option>, incluyendo la serie, para
+    // diferenciar equipos con el mismo nombre/marca.
+    function etiquetaEquipoConSerie(equipoMarca, serie) {
+        const serieTexto = (serie !== null && serie !== undefined && String(serie).trim() !== '')
+            ? serie
+            : 'Sin serie';
+        return equipoMarca + ' — Serie ' + serieTexto;
+    }
+
     function opcionesTipoEquipo(tipoSeleccionado) {
         let html = '<option value="">-- Tipo --</option>';
         tiposEquipo.forEach(function (tipo) {
@@ -440,14 +473,36 @@ $datosCambio = $datosCambio ?? null;
             .filter(function (item) { return item.tipo_equipo === tipoSeleccionado; })
             .forEach(function (item) {
                 const seleccionado = String(item.id_catalogo_equipo) === String(idCatalogoSeleccionado) ? 'selected' : '';
-                html += '<option value="' + item.id_catalogo_equipo + '" ' + seleccionado + '>' + item.equipo_marca + '</option>';
+                html += '<option value="' + item.id_catalogo_equipo + '" ' + seleccionado + '>' +
+                    etiquetaEquipoConSerie(item.equipo_marca, item.serie) +
+                    '</option>';
             });
         return html;
+    }
+
+    // Busca la serie de un equipo del catálogo por su id_catalogo_equipo.
+    // Es la ÚNICA forma en que la serie llega a la tabla: el usuario
+    // nunca la escribe.
+    function buscarSeriePorId(idCatalogoEquipo) {
+        const item = catalogoEquipos.find(function (i) {
+            return String(i.id_catalogo_equipo) === String(idCatalogoEquipo);
+        });
+
+        if (!item) {
+            return '';
+        }
+
+        return (item.serie !== null && item.serie !== undefined && String(item.serie).trim() !== '')
+            ? item.serie
+            : 'Sin serie';
     }
 
     function agregarFila(datosFila) {
         datosFila = datosFila || {};
         const indice = contadorFilas++;
+        const serieInicial = datosFila.id_catalogo_equipo
+            ? buscarSeriePorId(datosFila.id_catalogo_equipo)
+            : '';
 
         const fila = document.createElement('tr');
         fila.innerHTML =
@@ -458,6 +513,10 @@ $datosCambio = $datosCambio ?? null;
                 '<select name="equipos_utilizados[' + indice + '][id_catalogo_equipo]" class="select-equipo-marca">' +
                     opcionesEquipoMarca(datosFila.tipo_equipo || '', datosFila.id_catalogo_equipo || '') +
                 '</select>' +
+            '</td>' +
+            '<td>' +
+                '<input type="text" class="input-serie-equipo" readonly tabindex="-1" ' +
+                    'value="' + serieInicial + '" placeholder="—">' +
             '</td>' +
             '<td>' +
                 '<input type="number" min="1" name="equipos_utilizados[' + indice + '][cantidad]" ' +
@@ -471,15 +530,21 @@ $datosCambio = $datosCambio ?? null;
 
         const selectTipo = fila.querySelector('.select-tipo-equipo');
         const selectMarca = fila.querySelector('.select-equipo-marca');
+        const inputSerie = fila.querySelector('.input-serie-equipo');
         const inputCantidad = fila.querySelector('.input-cantidad-equipo');
         const botonQuitar = fila.querySelector('.btn-quitar-equipo');
 
         selectTipo.addEventListener('change', function () {
             selectMarca.innerHTML = opcionesEquipoMarca(selectTipo.value, '');
+            inputSerie.value = '';
             recalcularTotal();
         });
 
-        selectMarca.addEventListener('change', recalcularTotal);
+        selectMarca.addEventListener('change', function () {
+            inputSerie.value = buscarSeriePorId(selectMarca.value);
+            recalcularTotal();
+        });
+
         inputCantidad.addEventListener('input', recalcularTotal);
 
         botonQuitar.addEventListener('click', function (evento) {

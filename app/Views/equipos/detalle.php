@@ -6,13 +6,20 @@
  *                'codigo_trabajo' y 'proyecto' (por el JOIN
  *                hecho en Equipo::listar()/buscarPorId()),
  *                'equipos_utilizados' (array de filas con
- *                tipo_equipo, equipo_marca y cantidad, desde
- *                Equipo::buscarPorId()) y 'historial_cambios'
- *                (array de cambios permanentes: fecha_cambio,
- *                cantidad_retirada, cantidad_nueva, motivo,
- *                observacion, usuario, tipo_equipo_retirado,
- *                equipo_marca_retirado, tipo_equipo_nuevo,
- *                equipo_marca_nuevo).
+ *                tipo_equipo, equipo_marca, serie y cantidad,
+ *                desde Equipo::buscarPorId()) y
+ *                'historial_cambios' (array de cambios
+ *                permanentes: fecha_cambio, cantidad_retirada,
+ *                cantidad_nueva, motivo, observacion, usuario,
+ *                tipo_equipo_retirado, equipo_marca_retirado,
+ *                serie_retirado, tipo_equipo_nuevo,
+ *                equipo_marca_nuevo, serie_nuevo).
+ *
+ * NOTA SOBRE LA SERIE:
+ * La serie viene siempre resuelta por id_catalogo_equipo desde
+ * el Modelo (JOIN con catalogo_equipos), nunca por nombre. Esta
+ * vista solo la imprime tal cual llega en $equipo; no hace
+ * consultas ni búsquedas por nombre.
  * -----------------------------------------------------
  */
 
@@ -30,6 +37,12 @@ function claseEstadoEquipoDetalle(string $estado): string
 function formatearMontoDetalle($monto): string
 {
     return number_format((float) $monto, 2);
+}
+
+/** Muestra la serie o un guion si no hay dato (nunca deja la celda vacía). */
+function textoSerieDetalle(?string $serie): string
+{
+    return ($serie !== null && trim($serie) !== '') ? htmlspecialchars($serie) : '—';
 }
 
 $equiposUtilizados = $equipo['equipos_utilizados'] ?? [];
@@ -149,13 +162,14 @@ foreach ($equiposUtilizados as $filaEquipo) {
                     <tr>
                         <th>Tipo</th>
                         <th>Equipo / Marca</th>
+                        <th>Serie</th>
                         <th>Cantidad</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php if (empty($equiposUtilizados)): ?>
                         <tr>
-                            <td colspan="3" class="sin-datos">
+                            <td colspan="4" class="sin-datos">
                                 No se registraron equipos utilizados.
                             </td>
                         </tr>
@@ -164,6 +178,7 @@ foreach ($equiposUtilizados as $filaEquipo) {
                             <tr>
                                 <td><?= htmlspecialchars($filaEquipo['tipo_equipo']) ?></td>
                                 <td><?= htmlspecialchars($filaEquipo['equipo_marca']) ?></td>
+                                <td><?= textoSerieDetalle($filaEquipo['serie'] ?? null) ?></td>
                                 <td><?= (int) $filaEquipo['cantidad'] ?></td>
                             </tr>
                         <?php endforeach; ?>
@@ -172,7 +187,7 @@ foreach ($equiposUtilizados as $filaEquipo) {
                 <?php if (!empty($equiposUtilizados)): ?>
                     <tfoot>
                         <tr>
-                            <td colspan="2" class="dato-etiqueta">TOTAL</td>
+                            <td colspan="3" class="dato-etiqueta">TOTAL</td>
                             <td><strong><?= $totalEquiposUtilizados ?></strong></td>
                         </tr>
                     </tfoot>
@@ -190,8 +205,10 @@ foreach ($equiposUtilizados as $filaEquipo) {
                     <tr>
                         <th>Fecha</th>
                         <th>Equipo retirado</th>
+                        <th>Serie retirada</th>
                         <th>Cant.</th>
                         <th>Equipo nuevo</th>
+                        <th>Serie nueva</th>
                         <th>Cant.</th>
                         <th>Motivo</th>
                         <th>Observación</th>
@@ -200,7 +217,7 @@ foreach ($equiposUtilizados as $filaEquipo) {
                 <tbody>
                     <?php if (empty($historialCambios)): ?>
                         <tr>
-                            <td colspan="7" class="sin-datos">
+                            <td colspan="9" class="sin-datos">
                                 No se registraron cambios de equipo.
                             </td>
                         </tr>
@@ -212,11 +229,13 @@ foreach ($equiposUtilizados as $filaEquipo) {
                                     <?= htmlspecialchars($cambio['tipo_equipo_retirado']) ?>
                                     — <?= htmlspecialchars($cambio['equipo_marca_retirado']) ?>
                                 </td>
+                                <td><?= textoSerieDetalle($cambio['serie_retirado'] ?? null) ?></td>
                                 <td><?= (int) $cambio['cantidad_retirada'] ?></td>
                                 <td>
                                     <?= htmlspecialchars($cambio['tipo_equipo_nuevo']) ?>
                                     — <?= htmlspecialchars($cambio['equipo_marca_nuevo']) ?>
                                 </td>
+                                <td><?= textoSerieDetalle($cambio['serie_nuevo'] ?? null) ?></td>
                                 <td><?= (int) $cambio['cantidad_nueva'] ?></td>
                                 <td><?= htmlspecialchars($cambio['motivo']) ?></td>
                                 <td><?= htmlspecialchars($cambio['observacion'] ?: '—') ?></td>

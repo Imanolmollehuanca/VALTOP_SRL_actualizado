@@ -8,6 +8,10 @@
  * string $estadoActual  Estado del filtro activo ('Todos' por defecto).
  *
  * Esta vista NO consulta la base de datos, NO valida datos.
+ * NO muestra series ni el detalle individual de equipos: eso
+ * solo se ve en /equipos/ver/{id} (detalle.php). Aquí, en
+ * "N.° Equipos", solo se imprime la cantidad total ya calculada
+ * en cantidad_equipos.
  * -----------------------------------------------------
  */
 

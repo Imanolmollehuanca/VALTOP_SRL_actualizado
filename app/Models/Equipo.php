@@ -13,6 +13,13 @@ require_once __DIR__ . '/../../config/Database.php';
  *                        por completo al editar el
  *                        formulario general).
  * - 'catalogo_equipos' → catálogo maestro de equipos.
+ *                        Incluye 'serie': el número de
+ *                        serie de la unidad física, propio
+ *                        de cada fila del catálogo (no del
+ *                        registro de uso). El usuario nunca
+ *                        la escribe: siempre se obtiene
+ *                        automáticamente vía JOIN según el
+ *                        id_catalogo_equipo seleccionado.
  * - 'equipos_cambios'  → historial PERMANENTE de cambios
  *                        de equipo (retirar/agregar). Solo
  *                        se agregan filas nuevas, nunca se
@@ -381,10 +388,13 @@ class Equipo
      * Lista completa del catálogo de equipos, para poblar
      * los selects de "Tipo de equipo" / "Equipo-Marca" en
      * el formulario (Equipos Utilizados y Equipo nuevo).
+     * Incluye 'serie': se usa en el frontend para mostrarla
+     * automáticamente en cuanto el usuario elige un equipo
+     * del catálogo (nunca se escribe a mano).
      */
     public function obtenerCatalogoEquipos(): array
     {
-        $sql = "SELECT id_catalogo_equipo, tipo_equipo, equipo_marca
+        $sql = "SELECT id_catalogo_equipo, tipo_equipo, equipo_marca, serie
                 FROM catalogo_equipos
                 ORDER BY tipo_equipo ASC, equipo_marca ASC";
 
@@ -395,10 +405,10 @@ class Equipo
 
     /**
      * Filas de equipos_detalle de un registro (estado ACTUAL),
-     * ya unidas al catálogo. También se usa para poblar el
-     * select "Equipo retirado" en Registrar cambio de equipo,
-     * ya que solo deben aparecer ahí los equipos que el
-     * registro tiene actualmente.
+     * ya unidas al catálogo (incluyendo 'serie'). También se
+     * usa para poblar el select "Equipo retirado" en Registrar
+     * cambio de equipo, ya que solo deben aparecer ahí los
+     * equipos que el registro tiene actualmente.
      */
     private function listarDetallePorEquipo(int $idEquipo): array
     {
@@ -407,7 +417,8 @@ class Equipo
                     ed.id_catalogo_equipo,
                     ed.cantidad,
                     ce.tipo_equipo,
-                    ce.equipo_marca
+                    ce.equipo_marca,
+                    ce.serie
                 FROM equipos_detalle ed
                 INNER JOIN catalogo_equipos ce ON ce.id_catalogo_equipo = ed.id_catalogo_equipo
                 WHERE ed.id_equipo = :id_equipo
@@ -422,8 +433,8 @@ class Equipo
     /**
      * Historial permanente de cambios de un registro, ya unido
      * al catálogo (dos veces: equipo retirado y equipo nuevo)
-     * para traer sus nombres listos para mostrar. Se ordena del
-     * cambio más reciente al más antiguo.
+     * para traer sus nombres y series listos para mostrar. Se
+     * ordena del cambio más reciente al más antiguo.
      */
     private function listarHistorialCambios(int $idEquipo): array
     {
@@ -438,8 +449,10 @@ class Equipo
                     ec.creado_en,
                     cr.tipo_equipo  AS tipo_equipo_retirado,
                     cr.equipo_marca AS equipo_marca_retirado,
+                    cr.serie        AS serie_retirado,
                     cn.tipo_equipo  AS tipo_equipo_nuevo,
-                    cn.equipo_marca AS equipo_marca_nuevo
+                    cn.equipo_marca AS equipo_marca_nuevo,
+                    cn.serie        AS serie_nuevo
                 FROM equipos_cambios ec
                 INNER JOIN catalogo_equipos cr ON cr.id_catalogo_equipo = ec.id_catalogo_equipo_retirado
                 INNER JOIN catalogo_equipos cn ON cn.id_catalogo_equipo = ec.id_catalogo_equipo_nuevo
