@@ -81,6 +81,7 @@ class Trabajo
                     t.id_cliente,
                     c.nombre_cliente,
                     t.proyecto,
+                    t.descripcion,
                     t.ubicacion,
                     t.id_responsable,
                     u.nombre_usuario AS nombre_responsable,

@@ -130,12 +130,13 @@ $fechaImpresion = date('d/m/Y H:i');
                 <th>Estado</th>
                 <th>Fecha Inicio</th>
                 <th>Fecha Fin</th>
+                <th>Descripción</th>
             </tr>
         </thead>
         <tbody>
             <?php if (empty($trabajos)): ?>
                 <tr>
-                    <td colspan="8" class="sin-datos">
+                    <td colspan="9" class="sin-datos">
                         No hay trabajos que coincidan con los filtros aplicados.
                     </td>
                 </tr>
@@ -156,6 +157,9 @@ $fechaImpresion = date('d/m/Y H:i');
                         </td>
                         <td><?= htmlspecialchars($trabajo['fecha_inicio']) ?></td>
                         <td><?= htmlspecialchars($trabajo['fecha_fin']) ?></td>
+                        <td class="columna-descripcion">
+                            <?= nl2br(htmlspecialchars($trabajo['descripcion'] ?? '')) ?>
+                        </td>
                     </tr>
                 <?php endforeach; ?>
             <?php endif; ?>

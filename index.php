@@ -123,20 +123,20 @@ function generarExcelTrabajos(
 
     $colorAzulValtop = '1F3864';
     $colorEncabezado = '2F5496';
-    $columnas = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+    $columnas = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'];
 
     // Encabezado de empresa
-    $hoja->mergeCells('A1:H1');
+    $hoja->mergeCells('A1:I1');
     $hoja->setCellValue('A1', 'VALTOP SRL');
     $hoja->getStyle('A1')->getFont()->setBold(true)->setSize(18)->getColor()->setRGB($colorAzulValtop);
     $hoja->getStyle('A1')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
 
-    $hoja->mergeCells('A2:H2');
+    $hoja->mergeCells('A2:I2');
     $hoja->setCellValue('A2', 'Sistema de Gestión de Trabajos');
     $hoja->getStyle('A2')->getFont()->setItalic(true)->setSize(11)->getColor()->setRGB('595959');
     $hoja->getStyle('A2')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
 
-    $hoja->mergeCells('A4:H4');
+    $hoja->mergeCells('A4:I4');
     $hoja->setCellValue('A4', 'REPORTE DE TRABAJOS');
     $hoja->getStyle('A4')->getFont()->setBold(true)->setSize(14);
     $hoja->getStyle('A4')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
@@ -159,14 +159,14 @@ function generarExcelTrabajos(
     $filaEncabezado = 11;
     $encabezadosTabla = [
         'N° Trabajo', 'Cliente', 'Proyecto', 'Responsable',
-        'Precio Neto (S/)', 'Estado', 'Fecha Inicio', 'Fecha Fin',
+        'Precio Neto (S/)', 'Estado', 'Fecha Inicio', 'Fecha Fin', 'Descripción',
     ];
 
     foreach ($columnas as $indice => $columna) {
         $hoja->setCellValue($columna . $filaEncabezado, $encabezadosTabla[$indice]);
     }
 
-    $rangoEncabezado = 'A' . $filaEncabezado . ':H' . $filaEncabezado;
+    $rangoEncabezado = 'A' . $filaEncabezado . ':I' . $filaEncabezado;
     $hoja->getStyle($rangoEncabezado)->getFont()->setBold(true)->getColor()->setRGB('FFFFFF');
     $hoja->getStyle($rangoEncabezado)->getFill()
         ->setFillType(Fill::FILL_SOLID)
@@ -187,6 +187,7 @@ function generarExcelTrabajos(
         $hoja->setCellValue('F' . $filaActual, $trabajo['estado']);
         $hoja->setCellValue('G' . $filaActual, $trabajo['fecha_inicio']);
         $hoja->setCellValue('H' . $filaActual, $trabajo['fecha_fin']);
+        $hoja->setCellValue('I' . $filaActual, $trabajo['descripcion'] ?? '');
 
         $filaActual++;
     }
@@ -204,10 +205,15 @@ function generarExcelTrabajos(
             ->getAlignment()
             ->setHorizontal(Alignment::HORIZONTAL_CENTER)
             ->setVertical(Alignment::VERTICAL_CENTER);
+
+        // La columna Descripción se deja alineada a la izquierda
+        // (default) porque es texto libre, solo se centra verticalmente.
+        $hoja->getStyle('I' . ($filaEncabezado + 1) . ':I' . $ultimaFilaDatos)
+            ->getAlignment()->setVertical(Alignment::VERTICAL_CENTER);
     }
 
     // Bordes de toda la tabla (encabezado + datos)
-    $rangoTablaCompleta = 'A' . $filaEncabezado . ':H' . max($ultimaFilaDatos, $filaEncabezado);
+    $rangoTablaCompleta = 'A' . $filaEncabezado . ':I' . max($ultimaFilaDatos, $filaEncabezado);
     $hoja->getStyle($rangoTablaCompleta)->getBorders()->getAllBorders()
         ->setBorderStyle(Border::BORDER_THIN);
 
@@ -268,9 +274,16 @@ function generarExcelTrabajos(
         ->setBorderStyle(Border::BORDER_THIN);
 
     // ---------- Ajustes finales ----------
+    // La columna Descripción (I) no se autoajusta por contenido
+    // (podría ser un texto muy largo y dejar la columna gigante);
+    // se le da un ancho fijo razonable en su lugar.
     foreach ($columnas as $columna) {
+        if ($columna === 'I') {
+            continue;
+        }
         $hoja->getColumnDimension($columna)->setAutoSize(true);
     }
+    $hoja->getColumnDimension('I')->setWidth(50);
 
     // Preparado para imprimir: horizontal, ajustado a 1 página de ancho
     $hoja->getPageSetup()

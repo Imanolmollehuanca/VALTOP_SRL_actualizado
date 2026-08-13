@@ -98,6 +98,18 @@ function formatearPrecioExpediente(float $monto): string
         </div>
     </section>
 
+    <section class="panel-descripcion">
+        <h2>Descripción</h2>
+
+        <?php if (!empty(trim((string) ($trabajo['descripcion'] ?? '')))): ?>
+            <p class="texto-descripcion">
+                <?= nl2br(htmlspecialchars($trabajo['descripcion'])) ?>
+            </p>
+        <?php else: ?>
+            <p class="texto-descripcion texto-descripcion-vacio">Sin descripción registrada.</p>
+        <?php endif; ?>
+    </section>
+
 </main>
 
 </body>
