@@ -89,8 +89,8 @@ class Trabajo
                     t.fecha_inicio,
                     t.fecha_fin,
                     t.estado,
-                    CASE
-                        WHEN DATEDIFF(t.fecha_fin, t.fecha_inicio) + 1 <= 2 THEN 'Rápido'
+                    CASE 
+                        WHEN (t.fecha_fin - t.fecha_inicio) + 1 <= 2 THEN 'Rápido'
                         ELSE 'Proyecto'
                     END AS tipo
                 FROM trabajos t

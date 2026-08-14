@@ -1,1 +1,7 @@
 /vendor/
+
+.env
+.env.*
+!.env.example
+
+config/Database_backup.php

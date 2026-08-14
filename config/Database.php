@@ -1,37 +1,38 @@
 <?php
 
-/**
- * Clase Database
- * -----------------------------------------------------
- * Responsable única: crear y entregar la conexión a la
- * base de datos usando PDO.
- *
- * Se usa el patrón "un solo punto de conexión": cualquier
- * modelo que necesite hablar con la BD llama a
- * Database::conectar() en vez de escribir su propia
- * conexión repetida.
- * -----------------------------------------------------
- */
+require_once __DIR__ . '/../vendor/autoload.php';
+
+$dotenv = Dotenv\Dotenv::createImmutable(__DIR__ . '/..');
+$dotenv->load();
+
 class Database
 {
-    private static string $host = 'localhost';
-    private static string $Puerto = '3306';
-    private static string $nombreBD = 'valtop_srl';
-    private static string $usuario = 'root';
-    private static string $password = '';
+    private static string $host;
+    private static string $Puerto;
+    private static string $nombreBD;
+    private static string $usuario;
+    private static string $password;
 
     private static ?PDO $conexion = null;
 
     public static function conectar(): PDO
     {
-        if (self::$conexion === null){
-            $dsn = 
-                "mysql:host=". self::$host .
-                ";port=". self::$Puerto .
-                ";dbname=". self::$nombreBD .
-                ";charset=utf8mb4";
-            
+        if (self::$conexion === null) {
+
+            self::$host = $_ENV['DB_HOST'];
+            self::$Puerto = $_ENV['DB_PORT'];
+            self::$nombreBD = $_ENV['DB_NAME'];
+            self::$usuario = $_ENV['DB_USER'];
+            self::$password = $_ENV['DB_PASSWORD'];
+
+            $dsn =
+                "pgsql:host=" . self::$host .
+                ";port=" . self::$Puerto .
+                ";dbname=" . self::$nombreBD .
+                ";sslmode=require";
+
             try {
+
                 self::$conexion = new PDO(
                     $dsn,
                     self::$usuario,
@@ -42,10 +43,14 @@ class Database
                         PDO::ATTR_EMULATE_PREPARES => false,
                     ]
                 );
-            }catch (PDOException $e){
+
+            } catch (PDOException $e) {
+
                 die('Error al conectar a la base de datos: ' . $e->getMessage());
+
             }
         }
+
         return self::$conexion;
     }
 }
